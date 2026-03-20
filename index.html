@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>整房管理系統</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+<!-- Firebase compat (no ES modules needed) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<style>
+:root{
+  --bg:#0d0f18;--surface:#161926;--surface2:#1e2235;
+  --border:#2a2f47;--accent:#4f8ef7;--accent2:#7c5cfc;
+  --green:#22c55e;--yellow:#f59e0b;--red:#ef4444;--orange:#f97316;
+  --text:#e8eaf0;--text2:#8b91a8;--text3:#464e6a;
+  --r:12px;--rs:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+
+#topbar{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border-bottom:1px solid var(--border);padding:0 14px;height:54px;position:sticky;top:0;z-index:100;gap:8px}
+.logo{font-size:15px;font-weight:900;color:var(--accent);white-space:nowrap}
+#member-tag{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:rgba(79,142,247,.15);color:var(--accent);cursor:pointer;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#lang-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit}
+
+#bottomnav{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);display:flex;z-index:100}
+.bnav{flex:1;display:flex;flex-direction:column;align-items:center;padding:9px 4px 13px;cursor:pointer;gap:3px;color:var(--text3);font-size:10px;transition:color .2s;position:relative}
+.bnav.active{color:var(--accent)}
+.bnav .ni{font-size:21px}
+.badge{position:absolute;top:5px;right:calc(50% - 18px);background:var(--red);color:#fff;font-size:10px;width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700}
+
+.page{display:none;padding:14px 14px 78px}.page.active{display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px;margin-bottom:12px}
+.ctitle{font-size:14px;font-weight:700;margin-bottom:11px}
+
+.btn{display:inline-flex;align-items:center;gap:5px;padding:9px 16px;border-radius:var(--rs);font-size:13px;font-weight:700;cursor:pointer;border:none;transition:all .18s;white-space:nowrap;font-family:inherit}
+.bp{background:var(--accent);color:#fff}.bs{background:var(--green);color:#fff}.bd{background:var(--red);color:#fff}
+.bg{background:transparent;border:1px solid var(--border);color:var(--text2)}
+.bsm{padding:5px 10px;font-size:12px}.bfull{width:100%;justify-content:center}
+
+.fg{margin-bottom:13px}
+.fl{font-size:12px;color:var(--text2);margin-bottom:5px;display:block;font-weight:600}
+.fi,.fsl,.fta{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);color:var(--text);padding:9px 11px;font-size:13px;outline:none;transition:border .2s;font-family:inherit}
+.fi:focus,.fsl:focus,.fta:focus{border-color:var(--accent)}
+.fsl option{background:var(--surface2)}.fta{resize:vertical;min-height:75px}
+
+.tag{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.t-blue{background:rgba(79,142,247,.15);color:#4f8ef7}.t-green{background:rgba(34,197,94,.15);color:#22c55e}
+.t-yellow{background:rgba(245,158,11,.15);color:#f59e0b}.t-red{background:rgba(239,68,68,.15);color:#ef4444}
+.t-purple{background:rgba(124,92,252,.15);color:#7c5cfc}.t-orange{background:rgba(249,115,22,.15);color:#f97316}
+.t-teal{background:rgba(20,184,166,.15);color:#14b8a6}
+
+.dot{width:7px;height:7px;border-radius:50%;display:inline-block}
+.dg{background:var(--text3)}.dy{background:var(--yellow)}.dgr{background:var(--green)}.dr{background:var(--red)}
+
+#room-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(102px,1fr));gap:9px;margin-bottom:14px}
+.rtile{background:var(--surface);border:1px solid var(--border);border-radius:var(--rs);padding:9px 7px;cursor:pointer;transition:all .18s;position:relative;overflow:hidden;min-height:74px}
+.rtile:hover{border-color:var(--accent)}
+.rtile.s-idle{border-left:3px solid var(--text3)}
+.rtile.s-cleaning{border-left:3px solid var(--yellow);background:rgba(245,158,11,.04)}
+.rtile.s-done{border-left:3px solid var(--green);background:rgba(34,197,94,.04)}
+.rtile.s-issue{border-left:3px solid var(--red);background:rgba(239,68,68,.04)}
+.rtile .rn{font-size:16px;font-weight:900}
+.rtile .rs{font-size:10px;color:var(--text2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rtile .rtm{font-size:10px;color:var(--text3);margin-top:1px}
+
+.mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);z-index:200;align-items:flex-end;justify-content:center}
+.mo.open{display:flex}
+.md{background:var(--surface);border-radius:var(--r) var(--r) 0 0;border:1px solid var(--border);border-bottom:none;width:100%;max-width:600px;max-height:92vh;overflow-y:auto;padding:18px 18px 30px;animation:su .25s ease}
+@keyframes su{from{transform:translateY(32px);opacity:0}}
+.mhdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.mtitle{font-size:16px;font-weight:800}
+.xcl{background:var(--surface2);border:none;color:var(--text2);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+
+.ckg{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.cki{display:flex;align-items:center;gap:9px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:9px 11px;cursor:pointer;transition:all .18s}
+.cki.ck{border-color:var(--green);background:rgba(34,197,94,.07)}
+.cki input{width:17px;height:17px;accent-color:var(--green);cursor:pointer;flex-shrink:0}
+.cki span{font-size:12px}
+
+.si{display:flex;align-items:center;gap:11px;padding:11px 0;border-bottom:1px solid var(--border)}
+.si:last-child{border-bottom:none}
+.sav{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+
+.iss{background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:11px;margin-bottom:9px;border-left:3px solid var(--red)}
+.iss.res{border-left-color:var(--green);opacity:.65}
+.ishdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.isdesc{font-size:12px;color:var(--text2)}.ismeta{font-size:11px;color:var(--text3);margin-top:5px}
+
+.zrow{display:flex;align-items:flex-start;gap:8px;padding:9px 0;border-bottom:1px solid var(--border)}
+.zrow:last-child{border-bottom:none}
+.znm{font-size:12px;font-weight:700;min-width:50px;padding-top:4px;color:var(--text2)}
+.zchips{display:flex;flex-wrap:wrap;gap:5px;flex:1}
+.zchip{padding:5px 11px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);font-size:12px;cursor:pointer;transition:all .18s;font-family:inherit}
+.zchip.sel{background:var(--accent2);border-color:var(--accent2);color:#fff;font-weight:700}
+
+.rtbl{width:100%;border-collapse:collapse;font-size:11px}
+.rtbl th{background:var(--surface2);color:var(--text2);padding:7px 8px;text-align:left;font-weight:700;border-bottom:1px solid var(--border);white-space:nowrap}
+.rtbl td{padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+.rtbl tr:last-child td{border-bottom:none}
+
+.tabs{display:flex;margin-bottom:14px;background:var(--surface2);border-radius:var(--rs);padding:3px}
+.tbb{flex:1;padding:7px;text-align:center;cursor:pointer;border-radius:6px;font-size:12px;font-weight:600;color:var(--text2);transition:all .18s;border:none;background:none;font-family:inherit}
+.tbb.active{background:var(--surface);color:var(--text);font-weight:800}
+
+.ff{display:flex;gap:7px;margin-bottom:12px;flex-wrap:wrap}
+.fb{padding:5px 14px;border-radius:20px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);font-size:12px;cursor:pointer;transition:all .18s;font-family:inherit;font-weight:600}
+.fb.active{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.tcs{display:flex;gap:7px;flex-wrap:wrap}
+.tc{padding:7px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);font-size:12px;cursor:pointer;transition:all .18s;font-weight:600;font-family:inherit}
+.tc.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.irg{display:grid;grid-template-columns:repeat(auto-fill,minmax(66px,1fr));gap:7px;margin-bottom:4px}
+.irb{padding:9px 5px;border-radius:var(--rs);border:1px solid var(--border);background:var(--surface2);color:var(--text);font-size:13px;font-weight:800;cursor:pointer;text-align:center;transition:all .18s;font-family:inherit}
+.irb:hover{border-color:var(--accent);color:var(--accent)}
+.irb.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+.irb.s-done{border-left:3px solid var(--green)}.irb.s-cleaning{border-left:3px solid var(--yellow)}
+
+.pb{height:5px;background:var(--surface2);border-radius:3px;overflow:hidden}
+.pf{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:3px;transition:width .35s}
+
+.dv{height:1px;background:var(--border);margin:12px 0}
+.empty{text-align:center;color:var(--text3);padding:36px 16px;font-size:13px}
+.ei{font-size:36px;margin-bottom:7px}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* LOGIN */
+#login-screen{position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;flex-direction:column;align-items:center;overflow-y:auto}
+.login-header{width:100%;background:var(--surface);border-bottom:1px solid var(--border);padding:28px 24px 20px;text-align:center;flex-shrink:0}
+.login-body{width:100%;max-width:480px;padding:20px 18px 40px}
+.pchip{display:flex;align-items:center;gap:10px;background:var(--surface2);border:2px solid var(--border);border-radius:var(--r);padding:12px 14px;cursor:pointer;transition:all .18s;margin-bottom:8px}
+.pchip.sel{border-color:var(--accent);background:rgba(79,142,247,.1)}
+.pchip .pav{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.pchip.sel .pav{background:linear-gradient(135deg,var(--green),#0ea5e9)}
+.pchip .pname{font-size:14px;font-weight:700;flex:1}
+.pchip .prole{font-size:11px;color:var(--text2)}
+.pchip .pck{width:22px;height:22px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;background:transparent;color:transparent;transition:all .18s}
+.pchip.sel .pck{background:var(--accent);border-color:var(--accent);color:#fff}
+
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.syncdot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;animation:pulse 2s infinite}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+
+#loading-overlay{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+
+#toast{position:fixed;bottom:76px;left:50%;transform:translateX(-50%) translateY(18px);background:var(--green);color:#fff;padding:9px 20px;border-radius:24px;font-size:13px;font-weight:700;opacity:0;transition:all .28s;z-index:9999;white-space:nowrap;pointer-events:none}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.err{background:var(--red)}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div style="font-size:13px;color:var(--text2)" id="loading-msg">連線 Firebase 中...</div>
+</div>
+
+<!-- LOGIN -->
+<div id="login-screen" style="display:none">
+  <div class="login-header">
+    <div style="font-size:40px;margin-bottom:6px">🏨</div>
+    <div style="font-size:22px;font-weight:900;color:var(--accent);margin-bottom:3px" data-t="appTitle">整房管理系統</div>
+    <div style="font-size:13px;color:var(--text2)" data-t="loginSub">選擇今天上班的人員（2–4 人）</div>
+  </div>
+  <div class="login-body">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--text2)">
+        <span data-t="selLabel">已選</span>
+        <span id="sel-count" style="color:var(--accent);font-size:18px;font-weight:900;margin:0 4px">0</span>
+        <span data-t="selUnit">人</span>
+      </div>
+      <button onclick="toggleLangLogin()" id="lang-btn-login" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;font-family:inherit">🇻🇳 VN</button>
+    </div>
+    <div id="person-list"></div>
+    <button id="enter-btn" class="btn bs bfull" onclick="doLogin()" disabled style="opacity:.4;font-size:15px;padding:14px;margin-top:6px">
+      ✓ <span data-t="enterBtn">進入整房系統</span>
+    </button>
+    <div style="margin-top:10px;text-align:center">
+      <button class="btn bg bsm" onclick="doAdminLogin()">⚙️ <span data-t="adminBtn">管理員進入</span></button>
+    </div>
+    <div style="margin-top:14px;display:flex;align-items:center;justify-content:center;gap:6px">
+      <span class="syncdot"></span>
+      <span style="font-size:11px;color:var(--text3)" data-t="connected">已連線 Firebase</span>
+    </div>
+  </div>
+</div>
+
+<!-- TOPBAR -->
+<div id="topbar" style="display:none">
+  <div class="logo">🏨</div>
+  <div id="member-tag" onclick="openSwitchModal()">－</div>
+  <button id="lang-btn" onclick="toggleLang()">🇻🇳 VN</button>
+</div>
+
+<!-- BOTTOM NAV -->
+<div id="bottomnav" style="display:none">
+  <div class="bnav active" onclick="showPage('rooms',this)"><div class="ni">🏠</div><span data-t="navRooms">房間</span></div>
+  <div class="bnav" onclick="showPage('staff',this)"><div class="ni">👥</div><span data-t="navStaff">人員</span></div>
+  <div class="bnav" onclick="showPage('issues',this);renderIssues()"><div class="ni">⚠️</div><span data-t="navIssues">問題</span><div class="badge" id="issue-badge" style="display:none">0</div></div>
+  <div class="bnav" onclick="showPage('inspect',this);renderInspectGrid();renderInspectHistory()"><div class="ni">🔍</div><span data-t="navInspect">查房</span></div>
+  <div class="bnav" onclick="showPage('report',this)"><div class="ni">📊</div><span data-t="navReport">報表</span></div>
+</div>
+
+<!-- PAGE: 房間 -->
+<div class="page active" id="page-rooms">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <h2 style="font-size:17px;font-weight:900" data-t="pageRooms">房間總覽</h2>
+    <button class="btn bp bsm" onclick="openStartClean(null)">＋ <span data-t="startClean">整房</span></button>
+  </div>
+  <div class="ff">
+    <button class="fb active" onclick="filterFloor(this,'all')" data-t="allFloors">全部</button>
+    <button class="fb" onclick="filterFloor(this,'1')">1F</button>
+    <button class="fb" onclick="filterFloor(this,'3')">3F</button>
+    <button class="fb" onclick="filterFloor(this,'5')">5F</button>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:11px;font-size:11px;color:var(--text2)">
+    <span><span class="dot dg"></span> <span data-t="idle">待整</span></span>
+    <span><span class="dot dy"></span> <span data-t="cleaning">整理中</span></span>
+    <span><span class="dot dgr"></span> <span data-t="done">完成</span></span>
+    <span><span class="dot dr"></span> <span data-t="hasIssue">問題</span></span>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:4px">
+      <span class="syncdot" id="main-syncdot"></span>
+      <span id="sync-time" style="font-size:10px;color:var(--text3)">即時同步</span>
+    </span>
+  </div>
+  <div id="room-grid"></div>
+</div>
+
+<!-- PAGE: 人員 -->
+<div class="page" id="page-staff">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+    <h2 style="font-size:17px;font-weight:900" data-t="pageStaff">人員管理</h2>
+    <button class="btn bp bsm" onclick="openAddStaff()">＋ <span data-t="addStaff">新增</span></button>
+  </div>
+  <div id="staff-list"></div>
+</div>
+
+<!-- PAGE: 問題 -->
+<div class="page" id="page-issues">
+  <h2 style="font-size:17px;font-weight:900;margin-bottom:12px" data-t="pageIssues">問題回報</h2>
+  <div class="tabs">
+    <button class="tbb active" onclick="filterIssues(this,'all')" data-t="allIssues">全部</button>
+    <button class="tbb" onclick="filterIssues(this,'open')" data-t="openIssues">待處理</button>
+    <button class="tbb" onclick="filterIssues(this,'resolved')" data-t="resolvedIssues">已解決</button>
+  </div>
+  <div id="issues-list"></div>
+</div>
+
+<!-- PAGE: 查房 -->
+<div class="page" id="page-inspect">
+  <h2 style="font-size:17px;font-weight:900;margin-bottom:12px" data-t="pageInspect">查房</h2>
+  <div class="card">
+    <div class="ctitle" data-t="selectRoom">選擇房號</div>
+    <div class="ff" id="inspect-ff">
+      <button class="fb active" onclick="filterInspectFloor(this,'all')" data-t="allFloors">全部</button>
+      <button class="fb" onclick="filterInspectFloor(this,'1')">1F</button>
+      <button class="fb" onclick="filterInspectFloor(this,'3')">3F</button>
+      <button class="fb" onclick="filterInspectFloor(this,'5')">5F</button>
+    </div>
+    <div class="irg" id="inspect-room-grid"></div>
+  </div>
+  <div id="inspect-detail" style="display:none">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:11px">
+        <div class="mtitle" id="inspect-room-title"></div>
+        <button class="btn bg bsm" onclick="clearInspect()">✕</button>
+      </div>
+      <div id="inspect-last-record"></div>
+    </div>
+    <div class="card">
+      <div class="ctitle" data-t="inspectChecklist">查房清單</div>
+      <div class="ckg" id="inspect-cklist"></div>
+      <div style="margin-top:11px">
+        <div class="pb"><div class="pf" id="inspect-pf" style="width:0%"></div></div>
+        <div style="font-size:11px;color:var(--text2);margin-top:5px" id="inspect-pl"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:8px">
+      <button class="btn bs bfull" onclick="markInspectDone()">✓ <span data-t="markInspected">完成查房</span></button>
+      <button class="btn bd bsm" onclick="openIssueModal(currentInspectRoom)">⚠️</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ctitle" data-t="inspectHistory">查房紀錄</div>
+    <div id="inspect-history-list"></div>
+  </div>
+</div>
+
+<!-- PAGE: 報表 -->
+<div class="page" id="page-report">
+  <h2 style="font-size:17px;font-weight:900;margin-bottom:12px" data-t="pageReport">整房報表</h2>
+  <div class="card">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="date" id="report-date" class="fi" style="flex:1;min-width:130px">
+      <button class="btn bp bsm" onclick="generateReport()"><span data-t="generate">產生</span></button>
+    </div>
+  </div>
+  <div id="report-content"></div>
+  <div class="card">
+    <div class="ctitle">📧 Email</div>
+    <div class="fg"><label class="fl">Email</label><input class="fi" id="report-email" value="hsi.yuehcth@gmail.com"></div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:11px" data-t="emailNote">每天凌晨 2:00 前一日報表；週一 2:00 查房週報</div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <button class="btn bp bsm" onclick="sendEmailNow('daily')">📤 <span data-t="sendDaily">寄今日報表</span></button>
+      <button class="btn bp bsm" onclick="sendEmailNow('weekly')">📤 <span data-t="sendWeekly">寄查房週報</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: 開始整房 -->
+<div class="mo" id="modal-start">
+  <div class="md">
+    <div class="mhdr"><div class="mtitle" data-t="startCleanTitle">開始整房</div><button class="xcl" onclick="closeModal('modal-start')">✕</button></div>
+    <div class="fg"><label class="fl" data-t="selectRoom">房間</label><select class="fsl" id="sc-room"></select></div>
+    <div class="fg">
+      <label class="fl" data-t="cleanType">整理類型</label>
+      <div class="tcs">
+        <div class="tc" data-type="normal" onclick="selType(this)" data-t="normalClean">正常整</div>
+        <div class="tc" data-type="big" onclick="selType(this)" data-t="bigMaint">大保養</div>
+        <div class="tc" data-type="small" onclick="selType(this)" data-t="smallMaint">小保養</div>
+        <div class="tc" data-type="rush" onclick="selType(this)" data-t="rushRoom">趕房</div>
+      </div>
+    </div>
+    <div class="fg">
+      <label class="fl" data-t="zoneAssign">區域分配</label>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:7px" data-t="zoneHint">成員可跨區，同區可多人</div>
+      <div id="zone-table"></div>
+    </div>
+    <button class="btn bs bfull" onclick="confirmStartClean()">✓ <span data-t="confirmStart">確認開始</span></button>
+  </div>
+</div>
+
+<!-- MODAL: 房間詳情 -->
+<div class="mo" id="modal-room">
+  <div class="md">
+    <div class="mhdr"><div class="mtitle" id="modal-room-title"></div><button class="xcl" onclick="closeModal('modal-room')">✕</button></div>
+    <div id="modal-room-body"></div>
+  </div>
+</div>
+
+<!-- MODAL: 新增人員 -->
+<div class="mo" id="modal-staff">
+  <div class="md">
+    <div class="mhdr"><div class="mtitle" data-t="addStaffTitle">新增人員</div><button class="xcl" onclick="closeModal('modal-staff')">✕</button></div>
+    <div class="fg"><label class="fl" data-t="staffName">姓名</label><input class="fi" id="ns-name" placeholder="姓名"></div>
+    <div class="fg"><label class="fl" data-t="staffRole">職位</label>
+      <select class="fsl" id="ns-role">
+        <option value="housekeeper">房務員</option>
+        <option value="supervisor">主管</option>
+        <option value="maintenance">工務</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl" data-t="staffPhone">電話</label><input class="fi" id="ns-phone" type="tel" placeholder="電話"></div>
+    <button class="btn bp bfull" onclick="saveStaff()"><span data-t="save">儲存</span></button>
+  </div>
+</div>
+
+<!-- MODAL: 換班 -->
+<div class="mo" id="modal-switch">
+  <div class="md">
+    <div class="mhdr"><div class="mtitle" data-t="switchTitle">換班 / 調整成員</div><button class="xcl" onclick="closeModal('modal-switch')">✕</button></div>
+    <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:12px">
+      <span data-t="selLabel">已選</span>
+      <span id="sw-count" style="color:var(--accent);font-size:18px;font-weight:900;margin:0 4px">0</span>
+      <span data-t="selUnit">人</span>
+    </div>
+    <div id="sw-list"></div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <button class="btn bs bfull" id="sw-confirm-btn" onclick="confirmSwitch()" disabled style="opacity:.4"><span data-t="confirmSwitch">確認換班</span></button>
+      <button class="btn bg bsm" onclick="goToLogin()">↩</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: 問題 -->
+<div class="mo" id="modal-issue">
+  <div class="md">
+    <div class="mhdr"><div class="mtitle" data-t="reportIssue">回報問題</div><button class="xcl" onclick="closeModal('modal-issue')">✕</button></div>
+    <div class="fg"><label class="fl" data-t="issueRoom">房間</label><input class="fi" id="iss-room" readonly></div>
+    <div class="fg"><label class="fl" data-t="issueDesc">問題描述</label><textarea class="fta" id="iss-desc" placeholder="請描述..."></textarea></div>
+    <div class="fg"><label class="fl" data-t="issueLevel">嚴重程度</label>
+      <select class="fsl" id="iss-level"><option value="low">輕微</option><option value="mid">中等</option><option value="high">嚴重</option></select>
+    </div>
+    <button class="btn bd bfull" onclick="submitIssue()"><span data-t="submitIssue">送出</span></button>
+  </div>
+</div>
+
+<!-- MODAL: Email -->
+<div class="mo" id="modal-email">
+  <div class="md">
+    <div class="mhdr"><div class="mtitle" id="email-title"></div><button class="xcl" onclick="closeModal('modal-email')">✕</button></div>
+    <div id="email-preview" style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--rs);padding:12px;font-size:11px;color:var(--text2);max-height:40vh;overflow-y:auto;margin-bottom:14px;white-space:pre-wrap;line-height:1.8;font-family:monospace"></div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:12px" data-t="emailSimNote">（模擬功能，正式寄送需串接後端）</div>
+    <button class="btn bp bfull" onclick="closeModal('modal-email');showToast('📧 已模擬寄送！')"><span data-t="confirmSend">確認寄送</span></button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+// FIREBASE INIT (compat mode - works everywhere)
+// ══════════════════════════════════════════
+const firebaseConfig = {
+  apiKey: "AIzaSyAMPFPOyyUHUG9H93MfywePn7OAUqiTON4",
+  authDomain: "motel-housekeeping.firebaseapp.com",
+  databaseURL: "https://motel-housekeeping-default-rtdb.firebaseio.com",
+  projectId: "motel-housekeeping",
+  storageBucket: "motel-housekeeping.firebasestorage.app",
+  messagingSenderId: "1077545679137",
+  appId: "1:1077545679137:web:91fb871bd11f9b14e7e660"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ══════════════════════════════════════════
+// TRANSLATIONS
+// ══════════════════════════════════════════
+const LANGS = {
+  zh: {
+    appTitle:'整房管理系統', loginSub:'選擇今天上班的人員（2–4 人）',
+    selLabel:'已選', selUnit:'人', enterBtn:'進入整房系統', adminBtn:'管理員進入',
+    connected:'已連線 Firebase',
+    navRooms:'房間', navStaff:'人員', navIssues:'問題', navInspect:'查房', navReport:'報表',
+    pageRooms:'房間總覽', pageStaff:'人員管理', pageIssues:'問題回報', pageInspect:'查房', pageReport:'整房報表',
+    startClean:'整房', startCleanTitle:'開始整房', selectRoom:'選擇房間', cleanType:'整理類型',
+    normalClean:'正常整', bigMaint:'大保養', smallMaint:'小保養', rushRoom:'趕房',
+    zoneAssign:'區域分配', zoneHint:'成員可跨區，同區可多人', confirmStart:'確認開始',
+    allFloors:'全部', idle:'待整', cleaning:'整理中', done:'完成', hasIssue:'問題',
+    addStaff:'新增', addStaffTitle:'新增人員', staffName:'姓名', staffRole:'職位', staffPhone:'電話', save:'儲存',
+    switchTitle:'換班 / 調整成員', confirmSwitch:'確認換班',
+    allIssues:'全部', openIssues:'待處理', resolvedIssues:'已解決',
+    reportIssue:'回報問題', issueRoom:'房間', issueDesc:'問題描述', issueLevel:'嚴重程度',
+    levelLow:'輕微', levelMid:'中等', levelHigh:'嚴重', submitIssue:'送出',
+    inspectChecklist:'查房清單', markInspected:'完成查房', inspectHistory:'查房紀錄',
+    emailNote:'每天凌晨 2:00 前一日報表；週一 2:00 查房週報',
+    sendDaily:'寄今日報表', sendWeekly:'寄查房週報',
+    emailSimNote:'（模擬功能，正式寄送需串接後端）', confirmSend:'確認寄送', generate:'產生',
+    checklist:'整房清單', finishClean:'完成整房', noRecord:'無紀錄', noIssue:'無問題紀錄',
+    checkItems:['淋浴間','浴缸','馬桶','洗手槽','玻璃門','床鋪','床頭櫃','梳妝台','備品盤','冰箱','電視','茶几','沙發','窗戶','地板','樓梯','車庫'],
+    zones:{bathroom:'廁所', bedroom:'房間', stairs:'樓梯', garage:'車庫'},
+    cleanTypes:{normal:'正常整', big:'大保養', small:'小保養', rush:'趕房'},
+    roles:{housekeeper:'房務員', supervisor:'主管', maintenance:'工務'},
+    startTime:'開始', endTime:'結束', cleanTypeCol:'類型', staffCol:'人員', zoneCol:'區域',
+    inspected:'查房完成', reportTitle:'整房報表',
+  },
+  vi: {
+    appTitle:'Hệ thống Dọn Phòng', loginSub:'Chọn nhân viên hôm nay (2–4 người)',
+    selLabel:'Đã chọn', selUnit:'người', enterBtn:'Vào hệ thống', adminBtn:'Quản trị viên',
+    connected:'Đã kết nối Firebase',
+    navRooms:'Phòng', navStaff:'Nhân viên', navIssues:'Vấn đề', navInspect:'Kiểm tra', navReport:'Báo cáo',
+    pageRooms:'Tổng quan', pageStaff:'Nhân viên', pageIssues:'Báo cáo', pageInspect:'Kiểm tra', pageReport:'Báo cáo',
+    startClean:'Dọn', startCleanTitle:'Bắt đầu dọn', selectRoom:'Chọn phòng', cleanType:'Loại dọn',
+    normalClean:'Bình thường', bigMaint:'Bảo dưỡng lớn', smallMaint:'Bảo dưỡng nhỏ', rushRoom:'Phòng gấp',
+    zoneAssign:'Phân công', zoneHint:'Một người có thể phụ trách nhiều khu vực', confirmStart:'Bắt đầu',
+    allFloors:'Tất cả', idle:'Chờ dọn', cleaning:'Đang dọn', done:'Xong', hasIssue:'Vấn đề',
+    addStaff:'Thêm', addStaffTitle:'Thêm nhân viên', staffName:'Họ tên', staffRole:'Chức vụ', staffPhone:'ĐT', save:'Lưu',
+    switchTitle:'Đổi ca', confirmSwitch:'Xác nhận',
+    allIssues:'Tất cả', openIssues:'Chờ xử lý', resolvedIssues:'Đã xử lý',
+    reportIssue:'Báo cáo', issueRoom:'Phòng', issueDesc:'Mô tả', issueLevel:'Mức độ',
+    levelLow:'Nhẹ', levelMid:'Trung bình', levelHigh:'Nghiêm trọng', submitIssue:'Gửi',
+    inspectChecklist:'Danh sách kiểm tra', markInspected:'Hoàn thành', inspectHistory:'Lịch sử',
+    emailNote:'Gửi 2:00 sáng mỗi ngày; Tuần vào thứ Hai',
+    sendDaily:'Gửi báo cáo hôm nay', sendWeekly:'Gửi báo cáo tuần',
+    emailSimNote:'（Mô phỏng）', confirmSend:'Xác nhận', generate:'Tạo',
+    checklist:'Danh sách', finishClean:'Hoàn thành', noRecord:'Không có', noIssue:'Không có vấn đề',
+    checkItems:['Phòng tắm đứng','Bồn tắm','Bồn cầu','Bồn rửa tay','Cửa kính','Giường','Tủ đầu giường','Bàn trang điểm','Khay đồ dùng','Tủ lạnh','TV','Bàn trà','Sofa','Cửa sổ','Sàn nhà','Cầu thang','Gara'],
+    zones:{bathroom:'Vệ sinh', bedroom:'Phòng ngủ', stairs:'Cầu thang', garage:'Gara'},
+    cleanTypes:{normal:'Bình thường', big:'Bảo dưỡng lớn', small:'Bảo dưỡng nhỏ', rush:'Phòng gấp'},
+    roles:{housekeeper:'NV phòng', supervisor:'Quản lý', maintenance:'Kỹ thuật'},
+    startTime:'Bắt đầu', endTime:'Kết thúc', cleanTypeCol:'Loại', staffCol:'Nhân viên', zoneCol:'Khu vực',
+    inspected:'Kiểm tra xong', reportTitle:'Báo cáo',
+  }
+};
+let currentLang='zh', T=LANGS.zh;
+function t(k){ return T[k]||k; }
+function applyTr(){ document.querySelectorAll('[data-t]').forEach(el=>{ const k=el.getAttribute('data-t'); if(T[k]) el.textContent=T[k]; }); }
+function toggleLang(){ setLang(currentLang==='zh'?'vi':'zh'); }
+function toggleLangLogin(){ setLang(currentLang==='zh'?'vi':'zh'); renderPersonList('person-list','sel-count','enter-btn',loginSelected); }
+function setLang(lang){
+  currentLang=lang; T=LANGS[lang];
+  document.getElementById('lang-btn').textContent = lang==='zh'?'🇻🇳 VN':'🇹🇼 中文';
+  document.getElementById('lang-btn-login').textContent = lang==='zh'?'🇻🇳 VN':'🇹🇼 中文';
+  applyTr(); renderRooms(); renderStaff(); renderIssues(); renderInspectGrid(); renderInspectHistory();
+}
+
+// ══════════════════════════════════════════
+// CONSTANTS
+// ══════════════════════════════════════════
+const ROOMS=[101,102,103,105,106,107,108,109,110,111,112,113,115,116,117,118,119,120,301,302,303,305,501,502,503,505];
+const ZONES=['bathroom','bedroom','stairs','garage'];
+const TC={normal:'t-teal',big:'t-purple',small:'t-blue',rush:'t-orange'};
+const EMOJIS=['👩','👨','🧑','👱','🧔','👲','🧕','👳'];
+
+// ══════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════
+let staff=[], rooms={}, issues=[], inspectHistory=[];
+ROOMS.forEach(n=>{ rooms[n]={status:'idle',sessions:[]}; });
+let currentMembers=[], loginSelected=[], switchSelected=[];
+let currentFloor='all', issueFilter='all';
+let currentInspectRoom=null, inspectChecklist=[], inspectFloor='all';
+let issueForRoom=null;
+
+// ══════════════════════════════════════════
+// FIREBASE REAL-TIME LISTENERS
+// ══════════════════════════════════════════
+function startListeners(){
+  db.ref('staff').on('value', snap => {
+    const val = snap.val();
+    staff = val ? Object.values(val) : [];
+    renderStaff();
+    if(document.getElementById('login-screen').style.display!=='none')
+      renderPersonList('person-list','sel-count','enter-btn',loginSelected);
+  });
+  db.ref('rooms').on('value', snap => {
+    const val = snap.val();
+    if(val) ROOMS.forEach(n=>{ if(val[n]){ rooms[n]=val[n]; if(!rooms[n].sessions)rooms[n].sessions=[]; }});
+    renderRooms();
+    const t2=document.getElementById('sync-time');
+    if(t2) t2.textContent=new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  });
+  db.ref('issues').on('value', snap => {
+    const val = snap.val();
+    issues = val ? Object.values(val).sort((a,b)=>a.id-b.id) : [];
+    renderIssues(); updateBadge();
+  });
+  db.ref('inspectHistory').on('value', snap => {
+    const val = snap.val();
+    inspectHistory = val ? Object.values(val).sort((a,b)=>b.id-a.id) : [];
+    renderInspectHistory();
+  });
+}
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+document.getElementById('report-date').valueAsDate = new Date();
+
+// Timeout fallback
+const loadTimeout = setTimeout(()=>{
+  document.getElementById('loading-overlay').innerHTML=`
+    <div style="text-align:center;padding:24px;max-width:300px">
+      <div style="font-size:36px;margin-bottom:10px">⚠️</div>
+      <div style="font-size:15px;font-weight:700;color:var(--yellow);margin-bottom:8px">連線逾時</div>
+      <div style="font-size:12px;color:var(--text2);line-height:1.8;margin-bottom:16px">
+        請到 Firebase 後台<br>
+        <b>Realtime Database → 規則</b><br>
+        改成：<br>
+        <code style="background:var(--surface2);padding:4px 8px;border-radius:4px;display:block;margin:8px 0">{ "rules": { ".read": true, ".write": true } }</code>
+        再點<b>發布</b>
+      </div>
+      <button onclick="location.reload()" style="background:var(--accent);color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer;font-weight:700">🔄 重新連線</button>
+    </div>`;
+}, 8000);
+
+db.ref('staff').once('value').then(snap => {
+  clearTimeout(loadTimeout);
+  if(!snap.val()){
+    const seed={};
+    [{id:1,name:'小美',role:'housekeeper',phone:'0912345678',emoji:'👩'},
+     {id:2,name:'Lan',role:'housekeeper',phone:'0923456789',emoji:'👩'},
+     {id:3,name:'Huong',role:'housekeeper',phone:'0934111222',emoji:'👩'},
+     {id:4,name:'阿明',role:'maintenance',phone:'0934567890',emoji:'👨'},
+     {id:5,name:'經理',role:'supervisor',phone:'0945678901',emoji:'🧑'}]
+     .forEach(s=>seed[s.id]=s);
+    db.ref('staff').set(seed);
+  }
+  startListeners();
+  document.getElementById('loading-overlay').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  applyTr();
+  setTimeout(()=>renderPersonList('person-list','sel-count','enter-btn',loginSelected), 600);
+}).catch(err=>{
+  clearTimeout(loadTimeout);
+  document.getElementById('loading-overlay').innerHTML=`
+    <div style="text-align:center;padding:24px;max-width:300px">
+      <div style="font-size:36px;margin-bottom:10px">❌</div>
+      <div style="font-size:15px;font-weight:700;color:var(--red);margin-bottom:8px">連線失敗</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:6px">${err.message||'請確認 Firebase 規則已開放'}</div>
+      <button onclick="location.reload()" style="background:var(--accent);color:#fff;border:none;padding:10px 24px;border-radius:8px;font-size:14px;cursor:pointer;font-weight:700">🔄 重試</button>
+    </div>`;
+});
+
+// ══════════════════════════════════════════
+// LOGIN
+// ══════════════════════════════════════════
+function renderPersonList(listId, countId, btnId, selArr){
+  const el=document.getElementById(listId); if(!el)return;
+  if(!staff.length){el.innerHTML=`<div class="empty"><div class="ei">👥</div>載入人員中...</div>`;return;}
+  el.innerHTML=staff.map(s=>{
+    const sel=selArr.includes(s.id);
+    return `<div class="pchip${sel?' sel':''}" onclick="togglePerson(${s.id},'${listId}','${countId}','${btnId}')">
+      <div class="pav">${s.emoji}</div>
+      <div style="flex:1"><div class="pname">${s.name}</div><div class="prole">${T.roles[s.role]||s.role}${s.phone?' · '+s.phone:''}</div></div>
+      <div class="pck">${sel?'✓':''}</div>
+    </div>`;
+  }).join('');
+  const cnt=document.getElementById(countId); if(cnt)cnt.textContent=selArr.length;
+  const btn=document.getElementById(btnId); if(btn){const ok=selArr.length>=2&&selArr.length<=4;btn.disabled=!ok;btn.style.opacity=ok?'1':'.4';}
+}
+
+function togglePerson(id, listId, countId, btnId){
+  const arr=listId==='person-list'?loginSelected:switchSelected;
+  const idx=arr.indexOf(id);
+  if(idx>=0)arr.splice(idx,1);
+  else{ if(arr.length>=4){showToast('最多選 4 人',true);return;} arr.push(id); }
+  renderPersonList(listId,countId,btnId,arr);
+}
+
+function doLogin(){ if(loginSelected.length<2)return; enterSystem(loginSelected); }
+function doAdminLogin(){ enterSystem([]); }
+
+function enterSystem(ids){
+  currentMembers=ids.map(id=>staff.find(s=>s.id===id)).filter(Boolean);
+  const names=currentMembers.length?currentMembers.map(s=>s.name).join('、'):'管理員';
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('topbar').style.display='flex';
+  document.getElementById('bottomnav').style.display='flex';
+  document.getElementById('member-tag').textContent='👥 '+names;
+  applyTr(); renderRooms(); renderStaff();
+  showToast('✅ 已進入系統');
+}
+
+function goToLogin(){
+  closeModal('modal-switch'); currentMembers=[]; loginSelected=[];
+  document.getElementById('topbar').style.display='none';
+  document.getElementById('bottomnav').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  renderPersonList('person-list','sel-count','enter-btn',loginSelected);
+}
+
+function openSwitchModal(){
+  switchSelected=currentMembers.map(s=>s.id);
+  renderPersonList('sw-list','sw-count','sw-confirm-btn',switchSelected);
+  openModal('modal-switch');
+}
+function confirmSwitch(){
+  if(switchSelected.length<2)return;
+  closeModal('modal-switch'); loginSelected=[...switchSelected]; enterSystem(switchSelected); showToast('✅ 換班完成');
+}
+
+// ══════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════
+function showPage(name,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.bnav').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+// ══════════════════════════════════════════
+// ROOMS
+// ══════════════════════════════════════════
+function getFloor(n){return n<200?'1':n<400?'3':'5';}
+function filterFloor(btn,floor){document.querySelectorAll('.ff .fb').forEach(b=>b.classList.remove('active'));btn.classList.add('active');currentFloor=floor;renderRooms();}
+
+function renderRooms(){
+  const grid=document.getElementById('room-grid');if(!grid)return;
+  grid.innerHTML='';
+  ROOMS.filter(n=>currentFloor==='all'||getFloor(n)===currentFloor).forEach(n=>{
+    const r=rooms[n]||{status:'idle',sessions:[]};
+    const openIss=issues.filter(i=>i.room==n&&i.status==='open').length;
+    const sc=openIss>0?'issue':r.status;
+    const tile=document.createElement('div');
+    tile.className=`rtile s-${sc}`;
+    const lastS=(r.sessions||[]).slice(-1)[0];
+    const typeTag=lastS?`<span class="tag ${TC[lastS.type]||'t-blue'}" style="font-size:9px;padding:1px 6px">${t('cleanTypes')[lastS.type]||''}</span>`:'';
+    let extra='';
+    if(lastS&&r.status==='cleaning'){
+      const names=(lastS.staffIds||[]).map(id=>{const s=staff.find(x=>x.id==id);return s?s.name:'?';}).join('·');
+      const st=lastS.startTime?lastS.startTime.split(' ')[1]?.substring(0,5)||'':'';
+      extra=`<div class="rs">👷 ${names}</div><div class="rtm">🕐 ${st}</div>`;
+    }else if(lastS&&r.status==='done'){
+      const et=lastS.endTime?lastS.endTime.split(' ')[1]?.substring(0,5)||'':'';
+      extra=`<div class="rtm" style="color:var(--green)">✓ ${et}</div>`;
+    }
+    tile.innerHTML=`<div class="rn">${n}</div><div style="margin-top:2px">${typeTag}</div>${extra}${openIss>0?`<div style="position:absolute;top:3px;right:3px;background:var(--red);color:#fff;font-size:9px;padding:1px 4px;border-radius:7px">⚠️${openIss}</div>`:''}`;
+    tile.onclick=()=>openRoomDetail(n);
+    grid.appendChild(tile);
+  });
+  updateBadge();
+}
+
+function updateBadge(){const open=issues.filter(i=>i.status==='open').length;const b=document.getElementById('issue-badge');if(b){b.style.display=open>0?'flex':'none';b.textContent=open;}}
+
+// ══════════════════════════════════════════
+// ROOM DETAIL
+// ══════════════════════════════════════════
+function openRoomDetail(roomNum){
+  const r=rooms[roomNum]||{status:'idle',sessions:[]};
+  const lastS=(r.sessions||[]).slice(-1)[0];
+  document.getElementById('modal-room-title').textContent=`🏠 ${roomNum}`;
+  const sC={idle:'var(--text3)',cleaning:'var(--yellow)',done:'var(--green)'};
+  const sL={idle:t('idle'),cleaning:t('cleaning'),done:t('done')};
+  let html=`<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px;align-items:center"><span style="color:${sC[r.status]};font-weight:800;font-size:14px">${sL[r.status]||''}</span>${lastS?`<span class="tag ${TC[lastS.type]||'t-blue'}">${t('cleanTypes')[lastS.type]||''}</span>`:''}</div>`;
+
+  if(r.status==='cleaning'&&lastS){
+    html+=buildZoneDisplay(lastS);
+    html+=`<div style="font-size:11px;color:var(--text3);margin-bottom:10px">🕐 ${lastS.startTime||''}</div>`;
+    html+=`<div style="font-size:13px;font-weight:800;margin-bottom:9px">📋 ${t('checklist')}</div><div class="ckg">`;
+    T.checkItems.forEach((item,i)=>{
+      const ck=lastS.checklist&&lastS.checklist[i];
+      html+=`<div class="cki${ck?' ck':''}" onclick="toggleCheck(${roomNum},${i},this)"><input type="checkbox"${ck?' checked':''}><span>${item}</span></div>`;
+    });
+    html+=`</div>`;
+    const done=(lastS.checklist||[]).filter(Boolean).length,pct=Math.round(done/T.checkItems.length*100);
+    html+=`<div style="margin:10px 0 4px;font-size:11px;color:var(--text2)">${done}/${T.checkItems.length}</div><div class="pb"><div class="pf" id="rpf-${roomNum}" style="width:${pct}%"></div></div>`;
+    html+=`<div style="display:flex;gap:7px;margin-top:14px"><button class="btn bs" style="flex:1" onclick="finishClean(${roomNum})">✓ ${t('finishClean')}</button><button class="btn bd bsm" onclick="openIssueModal(${roomNum})">⚠️</button></div>`;
+  }else if(r.status==='done'&&lastS){
+    html+=`<div class="card" style="padding:11px;margin-bottom:11px;font-size:12px;line-height:2.1"><div>🕐 <b>${t('startTime')}：</b>${lastS.startTime||'-'}</div><div>✅ <b>${t('endTime')}：</b>${lastS.endTime||'-'}</div></div>`;
+    html+=buildZoneDisplay(lastS);
+    html+=`<div style="display:flex;gap:7px"><button class="btn bg bsm" onclick="closeModal('modal-room');openStartClean(${roomNum})">🔄 ${t('startClean')}</button><button class="btn bd bsm" onclick="openIssueModal(${roomNum})">⚠️</button></div>`;
+  }else{
+    html+=`<div class="empty"><div class="ei">🛏️</div>${t('noRecord')}</div><button class="btn bp bfull" style="margin-top:11px" onclick="closeModal('modal-room');openStartClean(${roomNum})">＋ ${t('startClean')}</button>`;
+  }
+  const ri=issues.filter(i=>i.room==roomNum);
+  if(ri.length){
+    const lm={low:'t-yellow',mid:'t-orange',high:'t-red'},ll={low:t('levelLow'),mid:t('levelMid'),high:t('levelHigh')};
+    html+=`<div class="dv"></div><div style="font-size:13px;font-weight:800;margin-bottom:7px">⚠️ ${t('reportIssue')}</div>`;
+    ri.slice(-3).forEach(iss=>{html+=`<div class="iss${iss.status==='resolved'?' res':''}"><div class="ishdr"><span class="tag ${lm[iss.level]}">${ll[iss.level]}</span><span style="font-size:10px;color:var(--text3)">${iss.time}</span></div><div class="isdesc">${iss.desc}</div>${iss.status==='open'?`<button class="btn bs bsm" style="margin-top:7px" onclick="resolveIssue(${iss.id},${roomNum})">✓</button>`:`<span style="color:var(--green);font-size:11px">✓</span>`}</div>`;});
+  }
+  document.getElementById('modal-room-body').innerHTML=html;
+  openModal('modal-room');
+}
+
+function buildZoneDisplay(sess){
+  const zm=sess.zoneStaff||{};
+  let html=`<div class="card" style="padding:11px;margin-bottom:11px"><div style="font-size:12px;font-weight:800;margin-bottom:7px">📍 ${t('zoneAssign')}</div>`;
+  ZONES.forEach(z=>{const ids=zm[z]||[];if(!ids.length)return;const names=ids.map(id=>{const s=staff.find(x=>x.id==id);return s?s.name:'?';}).join(', ');html+=`<div style="display:flex;gap:7px;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px"><span style="min-width:46px;color:var(--text2)">${T.zones[z]}</span><span>${names}</span></div>`;});
+  html+=`</div>`;return html;
+}
+
+function toggleCheck(roomNum,idx,el){
+  const r=rooms[roomNum],s=(r.sessions||[]).slice(-1)[0];if(!s)return;
+  if(!s.checklist)s.checklist=new Array(T.checkItems.length).fill(false);
+  s.checklist[idx]=!s.checklist[idx];
+  el.classList.toggle('ck',s.checklist[idx]);el.querySelector('input').checked=s.checklist[idx];
+  const done=s.checklist.filter(Boolean).length,pct=Math.round(done/T.checkItems.length*100);
+  const pf=document.getElementById(`rpf-${roomNum}`);if(pf)pf.style.width=pct+'%';
+  db.ref(`rooms/${roomNum}`).set(r);
+}
+
+function finishClean(roomNum){
+  const r=rooms[roomNum],s=(r.sessions||[]).slice(-1)[0];if(!s)return;
+  s.endTime=new Date().toLocaleString('zh-TW');r.status='done';
+  db.ref(`rooms/${roomNum}`).set(r);closeModal('modal-room');showToast(`✅ ${roomNum} ${t('done')}`);
+}
+
+// ══════════════════════════════════════════
+// START CLEAN
+// ══════════════════════════════════════════
+function openStartClean(preRoom){
+  document.getElementById('sc-room').innerHTML=ROOMS.map(n=>`<option value="${n}"${n==preRoom?' selected':''}>${n}</option>`).join('');
+  document.querySelectorAll('.tc').forEach(c=>c.classList.remove('sel'));
+  renderZoneTable();openModal('modal-start');
+}
+function selType(el){document.querySelectorAll('.tc').forEach(c=>c.classList.remove('sel'));el.classList.add('sel');}
+
+function renderZoneTable(){
+  const members=currentMembers.length?currentMembers:staff;
+  document.getElementById('zone-table').innerHTML=ZONES.map(z=>`
+    <div class="zrow"><div class="znm">${T.zones[z]}</div>
+    <div class="zchips" id="zc-${z}">${members.map(s=>`<div class="zchip" data-id="${s.id}" onclick="this.classList.toggle('sel')">${s.emoji}${s.name}</div>`).join('')}${!members.length?`<span style="font-size:11px;color:var(--text3)">無成員</span>`:''}</div></div>`).join('');
+}
+
+function confirmStartClean(){
+  const roomNum=parseInt(document.getElementById('sc-room').value);
+  const typeEl=document.querySelector('.tc.sel');
+  const zm={};let allIds=new Set();
+  ZONES.forEach(z=>{const sel=[...document.querySelectorAll(`#zc-${z} .zchip.sel`)].map(c=>parseInt(c.dataset.id));if(sel.length)zm[z]=sel;sel.forEach(id=>allIds.add(id));});
+  if(!typeEl){showToast('⚠️ 請選整理類型',true);return;}
+  if(!allIds.size){showToast('⚠️ 請分配區域人員',true);return;}
+  const now=new Date().toLocaleString('zh-TW');
+  if(!rooms[roomNum])rooms[roomNum]={status:'idle',sessions:[]};
+  if(!rooms[roomNum].sessions)rooms[roomNum].sessions=[];
+  rooms[roomNum].status='cleaning';
+  rooms[roomNum].sessions.push({type:typeEl.dataset.type,staffIds:[...allIds],zoneStaff:zm,startTime:now,endTime:null,checklist:new Array(T.checkItems.length).fill(false)});
+  db.ref(`rooms/${roomNum}`).set(rooms[roomNum]);
+  closeModal('modal-start');showToast(`✅ ${roomNum} ${t('cleaning')}`);
+  setTimeout(()=>openRoomDetail(roomNum),360);
+}
+
+// ══════════════════════════════════════════
+// STAFF
+// ══════════════════════════════════════════
+function renderStaff(){
+  const list=document.getElementById('staff-list');if(!list)return;
+  if(!staff.length){list.innerHTML=`<div class="empty"><div class="ei">👥</div>${t('noRecord')}</div>`;return;}
+  list.innerHTML=staff.map(s=>`<div class="si"><div class="sav">${s.emoji}</div><div style="flex:1"><div style="font-size:13px;font-weight:700">${s.name}</div><div style="font-size:12px;color:var(--text2)">${T.roles[s.role]||s.role}${s.phone?' · '+s.phone:''}</div></div><button class="btn bg bsm" onclick="removeStaff(${s.id})">✕</button></div>`).join('');
+}
+function openAddStaff(){document.getElementById('ns-name').value='';document.getElementById('ns-phone').value='';openModal('modal-staff');}
+function saveStaff(){
+  const name=document.getElementById('ns-name').value.trim();
+  const role=document.getElementById('ns-role').value;
+  const phone=document.getElementById('ns-phone').value.trim();
+  if(!name){showToast('⚠️ 請輸入姓名',true);return;}
+  const maxId=staff.reduce((m,s)=>Math.max(m,s.id),0);
+  const ns={id:maxId+1,name,role,phone,emoji:EMOJIS[staff.length%EMOJIS.length]};
+  db.ref(`staff/${ns.id}`).set(ns);closeModal('modal-staff');showToast(`✅ ${name} 已新增`);
+}
+function removeStaff(id){db.ref(`staff/${id}`).remove();}
+
+// ══════════════════════════════════════════
+// ISSUES
+// ══════════════════════════════════════════
+function openIssueModal(roomNum){issueForRoom=roomNum;document.getElementById('iss-room').value=roomNum||'';document.getElementById('iss-desc').value='';openModal('modal-issue');}
+function submitIssue(){
+  const desc=document.getElementById('iss-desc').value.trim();
+  const level=document.getElementById('iss-level').value;
+  if(!desc){showToast('⚠️ 請描述問題',true);return;}
+  const maxId=issues.reduce((m,i)=>Math.max(m,i.id),0);
+  const reporter=currentMembers.length?currentMembers.map(s=>s.name).join('·'):'管理員';
+  const iss={id:maxId+1,room:issueForRoom,desc,level,status:'open',time:new Date().toLocaleString('zh-TW'),reporter};
+  db.ref(`issues/${iss.id}`).set(iss);closeModal('modal-issue');showToast('⚠️ 問題已回報');
+}
+function filterIssues(btn,type){document.querySelectorAll('.tbb').forEach(b=>b.classList.remove('active'));btn.classList.add('active');issueFilter=type;renderIssues();}
+function resolveIssue(id,roomNum){
+  const iss=issues.find(i=>i.id===id);if(!iss)return;
+  iss.status='resolved';db.ref(`issues/${id}`).set(iss);
+  if(roomNum)openRoomDetail(roomNum);showToast('✅ 問題已解決');
+}
+function renderIssues(){
+  const list=document.getElementById('issues-list');if(!list)return;
+  let f=issues;
+  if(issueFilter==='open')f=issues.filter(i=>i.status==='open');
+  if(issueFilter==='resolved')f=issues.filter(i=>i.status==='resolved');
+  if(!f.length){list.innerHTML=`<div class="empty"><div class="ei">✅</div>${t('noIssue')}</div>`;return;}
+  const lm={low:'t-yellow',mid:'t-orange',high:'t-red'},ll={low:t('levelLow'),mid:t('levelMid'),high:t('levelHigh')};
+  list.innerHTML=f.slice().reverse().map(iss=>`<div class="iss${iss.status==='resolved'?' res':''}"><div class="ishdr"><span style="font-size:13px;font-weight:800">🏠 ${iss.room||'-'}</span><span class="tag ${lm[iss.level]||'t-yellow'}">${ll[iss.level]}</span></div><div class="isdesc">${iss.desc}</div><div class="ismeta">${iss.time} · ${iss.reporter}</div>${iss.status==='open'?`<button class="btn bs bsm" style="margin-top:7px" onclick="resolveIssue(${iss.id})">✓ ${t('resolvedIssues')}</button>`:`<span style="color:var(--green);font-size:11px;display:block;margin-top:5px">✓ ${t('resolvedIssues')}</span>`}</div>`).join('');
+  updateBadge();
+}
+
+// ══════════════════════════════════════════
+// INSPECT
+// ══════════════════════════════════════════
+function filterInspectFloor(btn,floor){document.querySelectorAll('#inspect-ff .fb').forEach(b=>b.classList.remove('active'));btn.classList.add('active');inspectFloor=floor;renderInspectGrid();}
+function renderInspectGrid(){
+  const grid=document.getElementById('inspect-room-grid');if(!grid)return;
+  grid.innerHTML=ROOMS.filter(n=>inspectFloor==='all'||getFloor(n)===inspectFloor).map(n=>`<div class="irb s-${(rooms[n]||{status:'idle'}).status}${currentInspectRoom===n?' sel':''}" onclick="selectInspectRoom(${n})">${n}</div>`).join('');
+}
+function selectInspectRoom(n){
+  currentInspectRoom=n;renderInspectGrid();
+  document.getElementById('inspect-room-title').textContent=`🏠 ${n}`;
+  const r=rooms[n]||{},lastS=(r.sessions||[]).slice(-1)[0];
+  let rec='';
+  if(lastS){rec=`<div style="font-size:12px;line-height:2.1"><div>🕐 <b>${t('startTime')}：</b>${lastS.startTime||'-'}</div>${lastS.endTime?`<div>✅ <b>${t('endTime')}：</b>${lastS.endTime}</div>`:''}<div>🏷️ <span class="tag ${TC[lastS.type]||'t-blue'}">${t('cleanTypes')[lastS.type]||''}</span></div></div>`;rec+=buildZoneDisplay(lastS);}
+  else rec=`<div class="empty" style="padding:16px">${t('noRecord')}</div>`;
+  document.getElementById('inspect-last-record').innerHTML=rec;
+  inspectChecklist=new Array(T.checkItems.length).fill(false);
+  renderInspectCklist();document.getElementById('inspect-detail').style.display='block';
+}
+function renderInspectCklist(){
+  document.getElementById('inspect-cklist').innerHTML=T.checkItems.map((item,i)=>`<div class="cki${inspectChecklist[i]?' ck':''}" onclick="togInspect(${i},this)"><input type="checkbox"${inspectChecklist[i]?' checked':''}><span>${item}</span></div>`).join('');
+  updInspProg();
+}
+function togInspect(i,el){inspectChecklist[i]=!inspectChecklist[i];el.classList.toggle('ck',inspectChecklist[i]);el.querySelector('input').checked=inspectChecklist[i];updInspProg();}
+function updInspProg(){const done=inspectChecklist.filter(Boolean).length,pct=Math.round(done/T.checkItems.length*100);document.getElementById('inspect-pf').style.width=pct+'%';document.getElementById('inspect-pl').textContent=`${done}/${T.checkItems.length}`;}
+function clearInspect(){currentInspectRoom=null;document.getElementById('inspect-detail').style.display='none';renderInspectGrid();}
+function markInspectDone(){
+  if(!currentInspectRoom)return;
+  const done=inspectChecklist.filter(Boolean).length;
+  const maxId=inspectHistory.reduce((m,h)=>Math.max(m,h.id),0);
+  const inspector=currentMembers.length?currentMembers.map(s=>s.name).join('·'):'主管';
+  const h={id:maxId+1,room:currentInspectRoom,time:new Date().toLocaleString('zh-TW'),checkedCount:done,total:T.checkItems.length,inspector};
+  db.ref(`inspectHistory/${h.id}`).set(h);clearInspect();showToast(`✅ ${t('inspected')}`);
+}
+function renderInspectHistory(){
+  const list=document.getElementById('inspect-history-list');if(!list)return;
+  if(!inspectHistory.length){list.innerHTML=`<div class="empty">${t('noRecord')}</div>`;return;}
+  list.innerHTML=inspectHistory.slice(0,30).map(h=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px"><span class="tag t-blue">🏠 ${h.room}</span><span style="color:var(--text2)">${h.checkedCount}/${h.total} · ${h.inspector}</span><span style="color:var(--text3);font-size:10px">${h.time}</span></div>`).join('');
+}
+
+// ══════════════════════════════════════════
+// REPORT
+// ══════════════════════════════════════════
+function generateReport(){
+  const label=document.getElementById('report-date').value||new Date().toLocaleDateString('zh-TW');
+  const all=[];ROOMS.forEach(n=>(rooms[n]?.sessions||[]).forEach(s=>all.push({room:n,...s})));
+  if(!all.length){document.getElementById('report-content').innerHTML=`<div class="empty">${t('noRecord')}</div>`;return;}
+  let html=`<div class="card"><div class="ctitle">📅 ${label}</div><div style="overflow-x:auto"><table class="rtbl"><tr><th>🏠</th><th>${t('startTime')}</th><th>${t('endTime')}</th><th>${t('cleanTypeCol')}</th><th>${t('staffCol')}</th><th>${t('zoneCol')}</th></tr>`;
+  all.forEach(s=>{
+    const zm=s.zoneStaff||{};
+    const names=(s.staffIds||[]).map(id=>{const m=staff.find(x=>x.id==id);return m?m.name:'?';}).join(', ');
+    const zstr=ZONES.filter(z=>zm[z]?.length).map(z=>{const ns=zm[z].map(id=>{const m=staff.find(x=>x.id==id);return m?m.name:'?';}).join(',');return `${T.zones[z]}:${ns}`;}).join(' | ');
+    html+=`<tr><td><b>${s.room}</b></td><td style="font-size:10px;white-space:nowrap">${s.startTime||'-'}</td><td style="font-size:10px;white-space:nowrap;color:${s.endTime?'var(--green)':'var(--yellow)'}">${s.endTime||'進行中'}</td><td><span class="tag ${TC[s.type]||'t-blue'}" style="font-size:10px">${t('cleanTypes')[s.type]||''}</span></td><td style="font-size:10px">${names}</td><td style="font-size:10px;color:var(--text2)">${zstr||'-'}</td></tr>`;
+  });
+  html+=`</table></div></div>`;document.getElementById('report-content').innerHTML=html;
+}
+function sendEmailNow(type){
+  const email=document.getElementById('report-email').value;
+  document.getElementById('email-title').textContent=type==='daily'?t('sendDaily'):t('sendWeekly');
+  let prev='';
+  if(type==='daily'){
+    prev=`主旨：整房日報 ${new Date().toLocaleDateString('zh-TW')}\n${'='.repeat(50)}\n`;
+    let any=false;
+    ROOMS.forEach(n=>(rooms[n]?.sessions||[]).forEach(s=>{any=true;const names=(s.staffIds||[]).map(id=>{const m=staff.find(x=>x.id==id);return m?m.name:'?';}).join(',');const zm=s.zoneStaff||{};const zstr=ZONES.filter(z=>zm[z]?.length).map(z=>T.zones[z]+':'+zm[z].map(id=>{const m=staff.find(x=>x.id==id);return m?m.name:'?';}).join(',')).join(' | ');prev+=`${n}\t${s.startTime||'-'}\t${s.endTime||'進行中'}\t${t('cleanTypes')[s.type]||''}\t${names}\t${zstr}\n`;}));
+    if(!any)prev+='（今日無整房紀錄）\n';
+  }else{
+    prev=`主旨：查房週報 ${new Date().toLocaleDateString('zh-TW')}\n${'='.repeat(40)}\n`;
+    if(!inspectHistory.length)prev+='（無查房紀錄）\n';
+    else inspectHistory.forEach(h=>{prev+=`${h.room}\t${h.time}\t${h.inspector}\t${h.checkedCount}/${h.total}\n`;});
+  }
+  document.getElementById('email-preview').textContent=prev;openModal('modal-email');
+}
+
+// ══════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.mo').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
+function showToast(msg,isErr){const el=document.getElementById('toast');el.textContent=msg;el.className='show'+(isErr?' err':'');setTimeout(()=>el.className='',2500);}
+</script>
+</body>
+</html>
