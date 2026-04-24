@@ -1301,7 +1301,6 @@ function roomHasProblem(roomId) {
 }
 
 function getRoomTypeLabel(roomId) {
-  const bDate = getBusinessDate();
   const records = Object.values(state.cleaningRecords);
   const rec = records.filter(r => r.room === roomId).sort((a, b) => (b.startTime || 0) - (a.startTime || 0))[0];
   if (!rec) return '';
@@ -1478,7 +1477,7 @@ function confirmStartCleaning() {
     assignees[akey] = [...new Set(people)];
   });
 
-  const bDate = getBusinessDate();
+  const today = localDateStr(new Date());
   const recId = uid();
   const record = {
     room: roomId,
@@ -1486,10 +1485,11 @@ function confirmStartCleaning() {
     assignees: assignees,
     startTime: Date.now(),
     endTime: null,
-    status: 'cleaning'
+    status: 'cleaning',
+    _date: today
   };
 
-  db.ref(`/cleaning/${bDate}/${recId}`).set(record)
+  db.ref(`/cleaning/${today}/${recId}`).set(record)
     .then(() => {
       db.ref(`/roomStatus/${roomId}`).set({ status: 'cleaning', recordId: recId, startTime: Date.now() });
       closeModal('modalStartCleaning');
@@ -1500,12 +1500,12 @@ function confirmStartCleaning() {
 
 function completeCleaning(recId) {
   if (!confirm(t('completeConfirm'))) return;
-  const bDate = getBusinessDate();
+  const today = localDateStr(new Date());
   const rec = state.cleaningRecords[recId];
   if (!rec) return;
 
   const endTime = Date.now();
-  db.ref(`/cleaning/${bDate}/${recId}`).update({ endTime: endTime, status: 'completed' })
+  db.ref(`/cleaning/${today}/${recId}`).update({ endTime: endTime, status: 'completed' })
     .then(() => {
       db.ref(`/roomStatus/${rec.room}`).update({ status: 'completed', endTime: endTime });
       closeModal('modalRoomDetail');
@@ -1517,7 +1517,6 @@ function completeCleaning(recId) {
 function openEditAssignees(recId, roomId) {
   const rec = state.cleaningRecords[recId];
   if (!rec) return;
-  const bDate = getBusinessDate();
 
   // Inline edit form inside the detail modal
   const display = document.getElementById(`areaAssignDisplay_${recId}`);
@@ -1548,7 +1547,7 @@ function openEditAssignees(recId, roomId) {
 }
 
 function saveEditAssignees(recId) {
-  const bDate = getBusinessDate();
+  const today = localDateStr(new Date());
   const assignees = {};
   Object.keys(AREAS).forEach(akey => {
     const people = [];
@@ -1559,7 +1558,7 @@ function saveEditAssignees(recId) {
     assignees[akey] = [...new Set(people)];
   });
 
-  db.ref(`/cleaning/${bDate}/${recId}/assignees`).set(assignees)
+  db.ref(`/cleaning/${today}/${recId}/assignees`).set(assignees)
     .then(() => {
       showToast('✅ 人員已更新');
       // Refresh display
@@ -1592,7 +1591,7 @@ function handlePhotoUpload(event) {
   const recId = state.photoUploadRecordId;
   if (!files.length || !recId) return;
 
-  const bDate = getBusinessDate();
+  const today = localDateStr(new Date());
 
   files.forEach(file => {
     const photoId = uid();
@@ -1612,7 +1611,7 @@ function handlePhotoUpload(event) {
         const base64 = canvas.toDataURL('image/jpeg', 0.7);
 
         const uploader = state.currentStaff.map(sid => state.staff[sid] ? state.staff[sid].name : '').filter(Boolean).join('、') || '管理員';
-        db.ref(`/cleaning/${bDate}/${recId}/photos/${photoId}`).set({
+        db.ref(`/cleaning/${today}/${recId}/photos/${photoId}`).set({
           url: base64, uploadedBy: uploader, uploadedAt: Date.now()
         }).then(() => showToast('✅ 照片已儲存'))
           .catch(e => showToast('❌ 儲存失敗: ' + e.message));
@@ -1925,7 +1924,7 @@ function completeInspection() {
   const record = {
     room: roomId,
     inspector: inspectorNames,
-    date: getBusinessDate(),
+    date: localDateStr(new Date()),
     time: Date.now(),
     cleaningStaff: cleanStaff,
     cleaningStatus: cleanStatus,
@@ -2080,9 +2079,9 @@ function deleteStaff(sid) {
 function adminDeleteRecord(recId) {
   if (!state.isAdmin) { showToast('❌ 僅管理員可刪除'); return; }
   if (!confirm('確定要刪除此整房紀錄？')) return;
-  const bDate = getBusinessDate();
   const rec = state.cleaningRecords[recId];
-  db.ref(`/cleaning/${bDate}/${recId}`).remove().then(() => {
+  const recDate = rec?._date || localDateStr(new Date());
+  db.ref(`/cleaning/${recDate}/${recId}`).remove().then(() => {
     if (rec) db.ref(`/roomStatus/${rec.room}`).remove();
     showToast('✅ 紀錄已刪除');
   }).catch(e => showToast('❌ 錯誤: ' + e.message));
