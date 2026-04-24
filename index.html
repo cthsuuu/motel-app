@@ -632,6 +632,16 @@ const INSPECTION_CATEGORIES = [
     {id:'bath_tablet',  name:'泡湯塊',               qty:'1'},
     {id:'toilet_floor', name:'廁所乾區地板/天花板/側牆'},
   ]},
+  { cat:'stair_garage', label:'樓梯/車庫', items:[
+    {id:'room_door',    name:'房間門/逃生須知/房號牌'},
+    {id:'stair_wall',   name:'樓梯牆面/燈光'},
+    {id:'stair_fire',   name:'樓梯/減火器'},
+    {id:'slippers_stair', name:'皮拖鞋',             qty:'2'},
+    {id:'shoe_chair',   name:'穿鞋椅',               qty:'1'},
+    {id:'garage_table', name:'車庫取餐檯'},
+    {id:'garage_floor', name:'車庫地板/減火器'},
+    {id:'garage_wall',  name:'車庫天花板/牆面'},
+  ]},
 ];
 // Keep legacy for any old references
 const INSPECTION_ITEMS = INSPECTION_CATEGORIES.flatMap(c => c.items.map(i => ({...i, zh:i.name, vi:i.name})));
@@ -1670,7 +1680,13 @@ function startInspection() {
   const roomId = document.getElementById('inspRoom').value;
   if (!roomId) return;
   state.currentInspRoom = roomId;
+  // Pre-set all items to OK by default
   state.currentInspItems = {};
+  INSPECTION_CATEGORIES.forEach(cat => {
+    cat.items.forEach(item => {
+      state.currentInspItems[item.id] = { status: 'ok', reason: '' };
+    });
+  });
 
   // Last clean info
   const records = Object.values(state.cleaningRecords);
