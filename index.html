@@ -269,20 +269,22 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
   <div id="tabContent">
     <!-- ── Tab 1: Overview ── -->
     <div id="tab-overview" class="tab-page active">
-      <div class="floor-filter" id="floorFilter">
+      <div class="floor-filter" id="floorFilter" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
         <button class="floor-btn active" data-floor="all" onclick="setFloor('all')" id="lbl-all">全部</button>
         <button class="floor-btn" data-floor="1F" onclick="setFloor('1F')">1F</button>
         <button class="floor-btn" data-floor="3F" onclick="setFloor('3F')">3F</button>
         <button class="floor-btn" data-floor="5F" onclick="setFloor('5F')">5F</button>
+        <button class="btn btn-sm btn-outline" style="margin-left:auto;font-size:12px;padding:4px 10px;" onclick="refreshOverview()">🔄 更新今日</button>
       </div>
+      <div id="ovDateLabel" style="font-size:11px;color:var(--text2);padding:2px 14px 6px;"></div>
       <div id="roomGrid" class="room-grid"></div>
     </div>
 
     <!-- ── Tab 2: Records ── -->
     <div id="tab-records" class="tab-page">
       <div class="section-hdr">
-        <div class="section-title">📋 當日紀錄</div>
-        <div id="businessDateLabel" style="font-size:12px;color:var(--text2);"></div>
+        <div class="section-title">📋 近7天紀錄</div>
+        <button class="btn btn-sm btn-outline" style="font-size:12px;" onclick="loadRecentRecords()">🔄 重新整理</button>
       </div>
       <div style="display:flex;gap:6px;padding:0 14px 8px;flex-shrink:0;">
         <button class="floor-btn active" data-rec="all"   onclick="setRecFilter('all')">全部</button>
@@ -853,7 +855,8 @@ let state = {
   photoUploadRecordId: null,
   syncTime: null,
   inspPeriod: null,
-  recFilter: 'all'
+  recFilter: 'all',
+  recentCleanRecords: {}
 };
 
 // ════════════════════════════════
@@ -865,22 +868,62 @@ try {
   db = firebase.database();
 } catch(e) { console.error('Firebase init error:', e); }
 
-// 業務日訂閱管理（每隔30秒自動重新訂閱新業務日）
+// 總覽用：訂閱指定日期的整房紀錄
 let _subDate = null;
 let _cleanRef = null;
-function subscribeRecords() {
+function subscribeRecords(forceDate) {
   if (!db) return;
-  const bDate = getBusinessDate();
-  if (_subDate === bDate) return; // 日期未變，不重複訂閱
-  if (_cleanRef) _cleanRef.off('value'); // 取消舊訂閱
+  const bDate = forceDate || localDateStr(new Date());
+  if (_subDate === bDate && !forceDate) return;
+  if (_cleanRef) _cleanRef.off('value');
   _subDate = bDate;
   _cleanRef = db.ref('/cleaning/' + bDate);
   _cleanRef.on('value', snap => {
     state.cleaningRecords = snap.val() || {};
     renderRoomGrid();
-    if (state.currentTab === 'records') renderRecords();
-    const lbl = document.getElementById('businessDateLabel');
-    if (lbl) lbl.textContent = bDate;
+    const lbl = document.getElementById('ovDateLabel');
+    if (lbl) lbl.textContent = '總覽日期：' + bDate;
+  });
+}
+
+// 取得本地 YYYY-MM-DD（不用 toISOString 避免時區偏移）
+function localDateStr(d) {
+  const y = d.getFullYear();
+  const mo = String(d.getMonth()+1).padStart(2,'0');
+  const dy = String(d.getDate()).padStart(2,'0');
+  return y+'-'+mo+'-'+dy;
+}
+
+// 手動更新總覽到今天
+function refreshOverview() {
+  const today = localDateStr(new Date());
+  subscribeRecords(today);
+  showToast('✅ 已更新總覽：' + today);
+}
+
+// 載入近 N 天的整房紀錄（不影響總覽）
+function loadRecentRecords(days) {
+  days = days || 7;
+  const dates = [];
+  for (let i = 0; i < days; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    dates.push(localDateStr(d));
+  }
+  const container = document.getElementById('recordsList');
+  if (container) container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);">載入中...</div>';
+  let loaded = 0;
+  const fresh = {};
+  dates.forEach(date => {
+    db.ref('/cleaning/' + date).once('value', snap => {
+      const data = snap.val() || {};
+      Object.entries(data).forEach(([id, r]) => { fresh[id] = {...r, _date: date}; });
+      loaded++;
+      if (loaded === dates.length) {
+        state.recentCleanRecords = fresh;
+        renderRecords();
+      }
+    });
   });
 }
 
@@ -965,7 +1008,7 @@ function setupListeners() {
   });
 
   // Today's cleaning records
-  subscribeRecords();
+  subscribeRecords(localDateStr(new Date()));
 
   // Issues
   db.ref('/issues').on('value', snap => {
@@ -990,8 +1033,6 @@ function updateSyncTime() {
     const d = new Date(state.syncTime);
     el.textContent = d.toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
   }
-  // 每30秒檢查業務日是否已切換（早上8點換日）
-  subscribeRecords();
 }
 
 // ════════════════════════════════
@@ -1224,7 +1265,7 @@ function switchTab(tab) {
   const navItem = document.querySelector(`.nav-item[data-tab="${tab}"]`);
   if (navItem) navItem.classList.add('active');
 
-  if (tab === 'records') renderRecords();
+  if (tab === 'records') loadRecentRecords();
   if (tab === 'issues') renderIssues();
   if (tab === 'inspection') { renderInspectRooms(); renderInspectHistory(); }
   if (tab === 'management') renderManagement();
@@ -1536,70 +1577,7 @@ function saveEditAssignees(recId) {
     .catch(e => showToast('❌ 錯誤: ' + e.message));
 }
 
-// ════════════════════════════════
-//  RECORDS TAB
-// ════════════════════════════════
-function renderRecords() {
-  const container = document.getElementById('recordsList');
-  if (!container) return;
-
-  const bDate = getBusinessDate();
-  document.getElementById('businessDateLabel').textContent = bDate;
-
-  const records = Object.entries(state.cleaningRecords).sort((a,b) => (b[1].startTime||0)-(a[1].startTime||0));
-
-  if (records.length === 0) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div>${t('noRecords')}</div>`;
-    return;
-  }
-
-  container.innerHTML = records.map(([recId, rec]) => {
-    const typeInfo = CLEANING_TYPES[rec.type] || {};
-    const isComplete = !!rec.endTime;
-
-    // Area assignments
-    const areaHtml = Object.entries(AREAS).map(([akey, alabel]) => {
-      const people = (rec.assignees && rec.assignees[akey]) || [];
-      const names = people.map(sid => state.staff[sid] ? state.staff[sid].name : '').filter(Boolean);
-      if (!names.length) return '';
-      return `<div class="area-tag">${alabel[state.lang]}: ${names.join('、')}</div>`;
-    }).join('');
-
-    // Photos
-    const photos = rec.photos ? Object.entries(rec.photos) : [];
-    const canUpload = state.currentStaff.length > 0 || state.isAdmin;
-    const canViewAll = isSupervisor();
-
-    const photoHtml = `
-      <div class="photo-row" id="photoRow_${recId}">
-        ${photos.map(([pid, p]) => `
-          <img class="photo-thumb" src="${p.url}" onclick="openLightbox('${p.url}')" alt="">
-        `).join('')}
-        ${canUpload ? `<div class="photo-add" onclick="triggerPhotoUpload('${recId}')">＋</div>` : ''}
-      </div>
-    `;
-
-    return `
-      <div class="record-card">
-        <div class="record-head">
-          <div>
-            <div class="record-room">🏠 ${rec.room}</div>
-            <div class="record-times">
-              ${t('startTime')}: ${formatTime(rec.startTime)}
-              ${isComplete ? ` ｜ ${t('endTime')}: ${formatTime(rec.endTime)} (${formatDuration(rec.startTime, rec.endTime)})` : ` ｜ <span style="color:var(--warning)">${t('cleaningInProgress')}</span>`}
-            </div>
-          </div>
-          <span class="badge ${typeInfo.cls || ''}">${ct(rec.type)}</span>
-        </div>
-        <div class="record-areas">${areaHtml}</div>
-        ${photoHtml}
-        ${state.isAdmin ? `<div style="margin-top:8px;text-align:right;">
-          <button class="btn btn-sm btn-danger" style="opacity:.7;" onclick="adminDeleteRecord('${recId}')">🗑 刪除紀錄</button>
-        </div>` : ''}
-      </div>
-    `;
-  }).join('');
-}
+// ════ RECORDS TAB ════
 
 // ════════════════════════════════
 //  PHOTO UPLOAD
@@ -2380,29 +2358,52 @@ function setRecFilter(f) {
 function renderRecords() {
   const container = document.getElementById('recordsList');
   if (!container) return;
-  const bDate = getBusinessDate();
-  document.getElementById('businessDateLabel').textContent = bDate;
 
-  // Combine cleaning + inspection records, sorted by time desc
-  const cleanEntries = Object.entries(state.cleaningRecords).map(([id, r]) => ({...r, _id:id, _type:'clean'}));
-  const inspEntries  = Object.values(state.inspections).filter(r => r.date === bDate).map((r,i) => ({...r, _type:'insp'}));
-  const combined = [...cleanEntries, ...inspEntries].sort((a,b) => (b.startTime||b.time||0)-(a.startTime||a.time||0));
+  // 近7天：整房紀錄
+  const cleanEntries = Object.entries(state.recentCleanRecords).map(([id, r]) => ({...r, _id:id, _type:'clean'}));
 
-  const filtered = combined.filter(r => {
+  // 近7天：查房紀錄（從 state.inspections 過濾）
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-7); cutoff.setHours(0,0,0,0);
+  const inspEntries = Object.values(state.inspections).filter(r => {
+    const ts = r.time || r.startTime;
+    return ts && new Date(ts) >= cutoff;
+  }).map(r => ({...r, _type:'insp'}));
+
+  let combined = [...cleanEntries, ...inspEntries];
+
+  // 篩選
+  combined = combined.filter(r => {
     if (state.recFilter === 'clean') return r._type === 'clean';
     if (state.recFilter === 'insp')  return r._type === 'insp';
     return true;
   });
 
-  if (!filtered.length) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div>今日尚無紀錄</div>`;
+  if (!combined.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div>近7天尚無紀錄</div></div>`;
     return;
   }
 
-  container.innerHTML = filtered.map(rec => {
-    if (rec._type === 'clean') return renderCleanRecord(rec);
-    if (rec._type === 'insp')  return renderInspRecord(rec);
-    return '';
+  // 按日期分組（降冪）
+  const groups = {};
+  combined.forEach(r => {
+    const ts = r.startTime || r.time;
+    const dateKey = ts ? localDateStr(new Date(ts)) : (r._date || '未知');
+    if (!groups[dateKey]) groups[dateKey] = [];
+    groups[dateKey].push(r);
+  });
+
+  const sortedDates = Object.keys(groups).sort((a,b) => b.localeCompare(a));
+  container.innerHTML = sortedDates.map(date => {
+    const recs = groups[date].sort((a,b) => ((b.startTime||b.time||0)-(a.startTime||a.time||0)));
+    const today = localDateStr(new Date());
+    const yesterday = localDateStr(new Date(Date.now()-86400000));
+    const label = date === today ? '今天 '+date : date === yesterday ? '昨天 '+date : date;
+    return `<div style="padding:8px 14px 4px;font-size:12px;font-weight:600;color:var(--text2);background:var(--bg2);border-bottom:1px solid var(--border);">${label}</div>`
+      + recs.map(rec => {
+        if (rec._type === 'clean') return renderCleanRecord(rec);
+        if (rec._type === 'insp')  return renderInspRecord(rec);
+        return '';
+      }).join('');
   }).join('');
 }
 
