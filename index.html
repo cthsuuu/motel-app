@@ -865,14 +865,35 @@ try {
   db = firebase.database();
 } catch(e) { console.error('Firebase init error:', e); }
 
+// 業務日訂閱管理（每隔30秒自動重新訂閱新業務日）
+let _subDate = null;
+let _cleanRef = null;
+function subscribeRecords() {
+  if (!db) return;
+  const bDate = getBusinessDate();
+  if (_subDate === bDate) return; // 日期未變，不重複訂閱
+  if (_cleanRef) _cleanRef.off('value'); // 取消舊訂閱
+  _subDate = bDate;
+  _cleanRef = db.ref('/cleaning/' + bDate);
+  _cleanRef.on('value', snap => {
+    state.cleaningRecords = snap.val() || {};
+    renderRoomGrid();
+    if (state.currentTab === 'records') renderRecords();
+    const lbl = document.getElementById('businessDateLabel');
+    if (lbl) lbl.textContent = bDate;
+  });
+}
+
 // ════════════════════════════════
 //  UTILS
 // ════════════════════════════════
 function getBusinessDate(ts) {
   const d = ts ? new Date(ts) : new Date();
-  const h = d.getHours();
-  if (h < 8) { d.setDate(d.getDate() - 1); }
-  return d.toISOString().split('T')[0];
+  if (d.getHours() < 8) { d.setDate(d.getDate() - 1); }
+  const y = d.getFullYear();
+  const mo = String(d.getMonth()+1).padStart(2,'0');
+  const dy = String(d.getDate()).padStart(2,'0');
+  return `${y}-${mo}-${dy}`;
 }
 
 function formatTime(ts) {
@@ -944,14 +965,6 @@ function setupListeners() {
   });
 
   // Today's cleaning records
-  function subscribeRecords() {
-    const bDate = getBusinessDate();
-    db.ref('/cleaning/' + bDate).on('value', snap => {
-      state.cleaningRecords = snap.val() || {};
-      renderRoomGrid();
-      if (state.currentTab === 'records') renderRecords();
-    });
-  }
   subscribeRecords();
 
   // Issues
@@ -973,11 +986,12 @@ function setupListeners() {
 
 function updateSyncTime() {
   const el = document.getElementById('syncTime');
-  if (!el) return;
-  if (state.syncTime) {
+  if (el && state.syncTime) {
     const d = new Date(state.syncTime);
     el.textContent = d.toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
   }
+  // 每30秒檢查業務日是否已切換（早上8點換日）
+  subscribeRecords();
 }
 
 // ════════════════════════════════
@@ -2592,7 +2606,12 @@ function getMonthPeriod() {
   return { start: mStart, end: mEnd };
 }
 
-function dateStr(d) { return d.toISOString().split('T')[0]; }
+function dateStr(d) {
+  const y = d.getFullYear();
+  const mo = String(d.getMonth()+1).padStart(2,'0');
+  const dy = String(d.getDate()).padStart(2,'0');
+  return `${y}-${mo}-${dy}`;
+}
 function periodLabel(s, e) { return `${dateStr(s).slice(5)}~${dateStr(e).slice(5).slice(0,5)}`; }
 
 // ════════════════════════════════
@@ -2902,12 +2921,13 @@ function exportMonthlyReport() {
       const st = state.staff[sid]; if(!st) return null;
       return [st.name, ROLE_LABELS[st.role]?.zh||'', s.clean, s.maintain, s.stair, s.garage, Math.round((s.clean+s.maintain+s.stair+s.garage)*100)/100];
     }).filter(Boolean);
-    const ws = XLSX.utils.aoa_to_sheet([[`月報　${prefix}`], moHeaders, ...moRows]);
+    const prefix2 = `${mp.start.getFullYear()}-${String(mp.start.getMonth()+1).padStart(2,'0')}`;
+    const ws = XLSX.utils.aoa_to_sheet([[`月報\u3000${prefix2}`], moHeaders, ...moRows]);
     ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:6}}];
     applyPrintStyle(ws, '', [10,8,6,6,8,8,8]);
-    XLSX.utils.book_append_sheet(wb, ws, `月報_${prefix}`);
-    XLSX.writeFile(wb, `月報_${prefix}.xlsx`);
-    showToast('✅ 月報已下載');
+    XLSX.utils.book_append_sheet(wb, ws, `月報_${prefix2}`);
+    XLSX.writeFile(wb, `月報_${prefix2}.xlsx`);
+    showToast('\u2705 月報已下載');
   });
 }
 
@@ -2916,7 +2936,6 @@ function exportMonthlyReport() {
 // ════════════════════════════════
 window.addEventListener('DOMContentLoaded', () => {
   applyTranslations();
-  renderInspectRooms();
   init();
   loadInspPeriod();
 });
