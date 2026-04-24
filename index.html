@@ -480,6 +480,22 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
   </div>
 </div>
 
+<!-- Admin Password Modal -->
+<div id="modalAdminPwd" class="modal-overlay center hidden" onclick="closeModalOverlay(event,'modalAdminPwd')">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span>🔐 管理員登入</span>
+      <span class="modal-close" onclick="closeModal('modalAdminPwd')">✕</span>
+    </div>
+    <div class="form-group">
+      <label>管理員密碼</label>
+      <input type="password" id="adminPwdInput" placeholder="請輸入密碼"
+        onkeydown="if(event.key==='Enter')checkAdminPassword()">
+    </div>
+    <button class="btn btn-primary btn-lg" onclick="checkAdminPassword()">🔓 確認登入</button>
+  </div>
+</div>
+
 <!-- Add Staff Modal -->
 <div id="modalAddStaff" class="modal-overlay center hidden" onclick="closeModalOverlay(event,'modalAddStaff')">
   <div class="modal-box">
@@ -504,6 +520,29 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
       <input type="tel" id="newStaffPhone" placeholder="電話號碼">
     </div>
     <button class="btn btn-primary btn-lg" onclick="submitAddStaff()" id="lbl-saveStaff">儲存</button>
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div id="modalChangePwd" class="modal-overlay center hidden" onclick="closeModalOverlay(event,'modalChangePwd')">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span>🔑 修改管理員密碼</span>
+      <span class="modal-close" onclick="closeModal('modalChangePwd')">✕</span>
+    </div>
+    <div class="form-group">
+      <label>舊密碼</label>
+      <input type="password" id="oldPwdInput" placeholder="舊密碼">
+    </div>
+    <div class="form-group">
+      <label>新密碼</label>
+      <input type="password" id="newPwdInput" placeholder="新密碼">
+    </div>
+    <div class="form-group">
+      <label>確認新密碼</label>
+      <input type="password" id="confirmPwdInput" placeholder="再輸入一次">
+    </div>
+    <button class="btn btn-primary btn-lg" onclick="changeAdminPassword()">💾 儲存新密碼</button>
   </div>
 </div>
 
@@ -919,40 +958,42 @@ function init() {
   setupListeners();
 }
 
-function renderLoginStaff() {
-  const grid = document.getElementById('staffGrid');
-  if (!grid) return;
+function buildStaffItems(ctx) {
   const staff = Object.entries(state.staff);
-  if (staff.length === 0) {
-    grid.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);">載入人員中...</div>';
-    return;
-  }
-  grid.innerHTML = staff.map(([id, s]) => `
+  if (!staff.length) return '<div style="text-align:center;padding:20px;color:var(--text2);">載入人員中...</div>';
+  return staff.map(([id, s]) => `
     <div class="staff-item ${state.currentStaff.includes(id) ? 'selected' : ''}"
-         onclick="toggleStaffSelect('${id}')">
+         data-staff-id="${id}" data-ctx="${ctx}"
+         onclick="toggleStaffSelect('${id}','${ctx}')">
       <div class="staff-avatar">${getRoleIcon(s.role)}</div>
       <div class="staff-name">${s.name}</div>
       <div class="staff-role">${ROLE_LABELS[s.role] ? ROLE_LABELS[s.role][state.lang] : s.role}</div>
     </div>
   `).join('');
-
-  // Shift modal grid
-  const shiftGrid = document.getElementById('shiftStaffGrid');
-  if (shiftGrid) shiftGrid.innerHTML = grid.innerHTML;
 }
 
-function toggleStaffSelect(id) {
+function renderLoginStaff() {
+  const grid = document.getElementById('staffGrid');
+  if (grid) grid.innerHTML = buildStaffItems('login');
+}
+
+function renderShiftStaff() {
+  const grid = document.getElementById('shiftStaffGrid');
+  if (grid) grid.innerHTML = buildStaffItems('shift');
+}
+
+function toggleStaffSelect(id, ctx) {
   const idx = state.currentStaff.indexOf(id);
-  if (idx >= 0) {
-    state.currentStaff.splice(idx, 1);
-  } else {
-    state.currentStaff.push(id);
+  if (idx >= 0) state.currentStaff.splice(idx, 1);
+  else state.currentStaff.push(id);
+  // Only update items within the correct container
+  const containerId = ctx === 'shift' ? 'shiftStaffGrid' : 'staffGrid';
+  const container = document.getElementById(containerId);
+  if (container) {
+    container.querySelectorAll('[data-staff-id]').forEach(el => {
+      el.classList.toggle('selected', state.currentStaff.includes(el.dataset.staffId));
+    });
   }
-  // Update visuals
-  document.querySelectorAll('.staff-item').forEach((el, i) => {
-    const sid = Object.keys(state.staff)[i];
-    el.classList.toggle('selected', state.currentStaff.includes(sid));
-  });
 }
 
 function enterSystem() {
@@ -965,9 +1006,45 @@ function enterSystem() {
 }
 
 function enterAdmin() {
-  state.currentStaff = [];
-  state.isAdmin = true;
-  showMainApp();
+  document.getElementById('adminPwdInput').value = '';
+  showModal('modalAdminPwd');
+  setTimeout(() => document.getElementById('adminPwdInput').focus(), 300);
+}
+
+const ADMIN_PWD_DEFAULT = '0000';
+
+function checkAdminPassword() {
+  const pwd = document.getElementById('adminPwdInput').value;
+  db.ref('/config/adminPassword').once('value', snap => {
+    const stored = snap.val() || ADMIN_PWD_DEFAULT;
+    if (pwd === stored) {
+      closeModal('modalAdminPwd');
+      state.currentStaff = [];
+      state.isAdmin = true;
+      showMainApp();
+    } else {
+      showToast('❌ 密碼錯誤');
+      document.getElementById('adminPwdInput').value = '';
+      document.getElementById('adminPwdInput').focus();
+    }
+  });
+}
+
+function changeAdminPassword() {
+  const oldPwd = document.getElementById('oldPwdInput').value;
+  const newPwd = document.getElementById('newPwdInput').value;
+  const confirmPwd = document.getElementById('confirmPwdInput').value;
+  if (!newPwd) { showToast('請輸入新密碼'); return; }
+  if (newPwd !== confirmPwd) { showToast('❌ 兩次密碼不一致'); return; }
+  db.ref('/config/adminPassword').once('value', snap => {
+    const stored = snap.val() || ADMIN_PWD_DEFAULT;
+    if (oldPwd !== stored) { showToast('❌ 舊密碼錯誤'); return; }
+    db.ref('/config/adminPassword').set(newPwd).then(() => {
+      closeModal('modalChangePwd');
+      ['oldPwdInput','newPwdInput','confirmPwdInput'].forEach(id => document.getElementById(id).value = '');
+      showToast('✅ 密碼已更新');
+    });
+  });
 }
 
 function showMainApp() {
@@ -999,7 +1076,7 @@ function updateHeaderStaffNames() {
 }
 
 function showShiftModal() {
-  renderLoginStaff(); // Refresh grid
+  renderShiftStaff(); // Render shift-specific grid (independent of login page)
   showModal('modalShift');
 }
 
@@ -1463,6 +1540,9 @@ function renderRecords() {
         </div>
         <div class="record-areas">${areaHtml}</div>
         ${photoHtml}
+        ${state.isAdmin ? `<div style="margin-top:8px;text-align:right;">
+          <button class="btn btn-sm btn-danger" style="opacity:.7;" onclick="adminDeleteRecord('${recId}')">🗑 刪除紀錄</button>
+        </div>` : ''}
       </div>
     `;
   }).join('');
@@ -1575,6 +1655,9 @@ function renderIssues() {
           ` : `<span style="font-size:11px;color:var(--text2);">${t('supervisorOnly')}</span>`}
         </div>
       `}
+      ${state.isAdmin ? `<div style="text-align:right;margin-top:4px;">
+        <button class="btn btn-sm btn-danger" style="opacity:.7;" onclick="adminDeleteIssue('${issId}')">🗑 刪除</button>
+      </div>` : ''}
     </div>
   `).join('');
 }
@@ -1920,11 +2003,12 @@ function renderManagement() {
 
 function renderStaffManagement(container) {
   const staffList = Object.entries(state.staff);
+  const isAdm = state.isAdmin;
   container.innerHTML = `
     <div class="card" style="margin-bottom:12px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
         <div style="font-weight:600;">${t('mgmtStaff')}</div>
-        <button class="btn btn-sm btn-primary" onclick="showModal('modalAddStaff')">＋ ${t('addStaff')}</button>
+        ${isAdm ? `<button class="btn btn-sm btn-primary" onclick="showModal('modalAddStaff')">＋ ${t('addStaff')}</button>` : '<span style="font-size:11px;color:var(--text3);">僅管理員可新增</span>'}
       </div>
       ${staffList.length === 0 ? `<div style="color:var(--text2);font-size:14px;">尚無人員</div>` :
         staffList.map(([sid, s]) => `
@@ -1933,10 +2017,17 @@ function renderStaffManagement(container) {
               <div style="font-weight:600;">${getRoleIcon(s.role)} ${s.name}</div>
               <div style="font-size:12px;color:var(--text2);">${ROLE_LABELS[s.role] ? ROLE_LABELS[s.role][state.lang] : s.role}${s.phone ? ' ｜ ' + s.phone : ''}</div>
             </div>
-            <button class="btn btn-sm btn-danger" onclick="deleteStaff('${sid}')">刪除</button>
+            ${isAdm ? `<button class="btn btn-sm btn-danger" onclick="deleteStaff('${sid}')">刪除</button>` : ''}
           </div>
         `).join('')}
     </div>
+    ${isAdm ? `
+      <div class="card" style="margin-bottom:12px;">
+        <div style="font-weight:600;margin-bottom:10px;">🔑 管理員設定</div>
+        <button class="btn btn-outline btn-sm w-full" onclick="showModal('modalChangePwd')">修改管理員密碼</button>
+        <div style="font-size:11px;color:var(--text3);margin-top:6px;">預設密碼：0000</div>
+      </div>
+    ` : ''}
   `;
 }
 
@@ -1958,9 +2049,37 @@ function submitAddStaff() {
 }
 
 function deleteStaff(sid) {
+  if (!state.isAdmin) { showToast('❌ 僅管理員可刪除人員'); return; }
   if (!confirm(t('deleteConfirm'))) return;
   db.ref('/staff/' + sid).remove()
     .then(() => showToast('✅ 已刪除'))
+    .catch(e => showToast('❌ 錯誤: ' + e.message));
+}
+
+function adminDeleteRecord(recId) {
+  if (!state.isAdmin) { showToast('❌ 僅管理員可刪除'); return; }
+  if (!confirm('確定要刪除此整房紀錄？')) return;
+  const bDate = getBusinessDate();
+  const rec = state.cleaningRecords[recId];
+  db.ref(`/cleaning/${bDate}/${recId}`).remove().then(() => {
+    if (rec) db.ref(`/roomStatus/${rec.room}`).remove();
+    showToast('✅ 紀錄已刪除');
+  }).catch(e => showToast('❌ 錯誤: ' + e.message));
+}
+
+function adminDeleteIssue(issId) {
+  if (!state.isAdmin) { showToast('❌ 僅管理員可刪除'); return; }
+  if (!confirm('確定要刪除此問題紀錄？')) return;
+  db.ref(`/issues/${issId}`).remove()
+    .then(() => showToast('✅ 問題已刪除'))
+    .catch(e => showToast('❌ 錯誤: ' + e.message));
+}
+
+function adminDeleteInspection(inspId) {
+  if (!state.isAdmin) { showToast('❌ 僅管理員可刪除'); return; }
+  if (!confirm('確定要刪除此查房紀錄？')) return;
+  db.ref(`/inspections/${inspId}`).remove()
+    .then(() => showToast('✅ 查房紀錄已刪除'))
     .catch(e => showToast('❌ 錯誤: ' + e.message));
 }
 
