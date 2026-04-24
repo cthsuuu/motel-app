@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>整房管理系統</title>
+<title>HMOTEL佳緹二館房務系統</title>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <!-- Storage not required: photos stored as base64 in Realtime Database -->
@@ -235,7 +235,7 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
 <div id="loginPage">
   <div class="login-header">
     <div class="login-logo">🏨</div>
-    <div class="login-title" id="lbl-appTitle">整房管理系統</div>
+    <div class="login-title" id="lbl-appTitle">HMOTEL佳緹二館房務系統</div>
     <div class="login-subtitle" id="lbl-selectStaff">請選擇今天上班人員</div>
   </div>
   <div id="staffGrid" class="staff-grid"></div>
@@ -256,7 +256,7 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
 <div id="mainApp" class="hidden">
   <!-- Header -->
   <div id="appHeader">
-    <div id="headerLeft">🏨 <span id="headerTitle">整房</span></div>
+    <div id="headerLeft" style="font-size:13px;font-weight:700;">HMOTEL佳緹二館房務系統</div>
     <div id="headerRight">
       <span id="syncTime"></span>
       <span id="staffNames"></span>
@@ -751,7 +751,7 @@ const REPORT_EMAIL = 'hmotel.jt@gmail.com';
 // ════════════════════════════════
 const T = {
   zh: {
-    appTitle:'整房管理系統', selectStaff:'請選擇今天上班人員',
+    appTitle:'HMOTEL佳緹二館房務系統', selectStaff:'請選擇今天上班人員',
     enter:'進入整房系統', adminEnter:'🔧 管理員進入',
     langSwitch:'切換越南文', shift:'換班',
     all:'全部', pending:'待處理', resolved:'已解決',
@@ -2621,50 +2621,86 @@ function periodLabel(s, e) { return `${dateStr(s).slice(5)}~${dateStr(e).slice(5
 function renderReports() {
   const container = document.getElementById('reportsContent');
   if (!container) return;
-  const bDate = getBusinessDate();
+  const today = localDateStr(new Date());
   const wp = getWeekPeriod();
   const mp = getMonthPeriod();
-  container.innerHTML = `
-    <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">
-      今日業務日：${bDate}｜本週：${dateStr(wp.start)}～${dateStr(new Date(wp.end.getTime()-86400000))}｜本月：${dateStr(mp.start).slice(0,7)}
-    </div>
+  const thisMonday = localDateStr(wp.start);
+  const thisMonth  = `${mp.start.getFullYear()}-${String(mp.start.getMonth()+1).padStart(2,'0')}`;
 
+  container.innerHTML = `
     <div class="card" style="margin-bottom:12px;">
       <div style="font-weight:600;margin-bottom:10px;">📅 每日報表</div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label>選擇業務日期</label>
+        <input type="date" id="rptDailyDate" value="${today}">
+      </div>
       <div style="display:flex;flex-direction:column;gap:8px;">
-        <button class="btn btn-outline btn-sm w-full" onclick="exportDailyCleanLog()">🧹 每日整房流水表（可印出）</button>
-        <button class="btn btn-outline btn-sm w-full" onclick="exportDailyStaffCount()">👥 每日員工整房間數</button>
+        <button class="btn btn-outline btn-sm w-full" onclick="exportDailyCleanLog()">🧹 整房流水表（可印出）</button>
+        <button class="btn btn-outline btn-sm w-full" onclick="exportDailyStaffCount()">👥 員工整房間數</button>
       </div>
     </div>
 
     <div class="card" style="margin-bottom:12px;">
-      <div style="font-weight:600;margin-bottom:10px;">📅 查房報表</div>
+      <div style="font-weight:600;margin-bottom:10px;">🔍 查房報表</div>
       <div class="form-group" style="margin-bottom:8px;">
         <label>查房期間起</label>
-        <input type="date" id="rptInspStart" value="${state.inspPeriod?.start || dateStr(wp.start)}">
+        <input type="date" id="rptInspStart" value="${state.inspPeriod?.start || thisMonday}">
       </div>
       <div class="form-group" style="margin-bottom:10px;">
         <label>查房期間迄</label>
-        <input type="date" id="rptInspEnd" value="${state.inspPeriod?.end || dateStr(new Date(wp.end.getTime()-86400000))}">
+        <input type="date" id="rptInspEnd" value="${state.inspPeriod?.end || today}">
       </div>
       <button class="btn btn-outline btn-sm w-full" onclick="exportPeriodInspection()">🔍 期間查房流水表</button>
     </div>
 
     <div class="card" style="margin-bottom:12px;">
-      <div style="font-weight:600;margin-bottom:10px;">📅 週報</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">本週：${dateStr(wp.start)} ～ ${dateStr(new Date(wp.end.getTime()-86400000))}</div>
-      <button class="btn btn-outline btn-sm w-full" onclick="exportWeeklyIssues()">⚠️ 每周問題紀錄（可印出）</button>
-      <div style="margin-top:8px;">
-        <button class="btn btn-primary btn-sm w-full" onclick="exportWeeklyReport()">📊 本週周報 Excel</button>
+      <div style="font-weight:600;margin-bottom:10px;">📊 週報</div>
+      <div class="form-group" style="margin-bottom:6px;">
+        <label>選擇週報起始日（週一）</label>
+        <input type="date" id="rptWeekDate" value="${thisMonday}" onchange="updateWeekLabel()">
+      </div>
+      <div id="rptWeekLabel" style="font-size:11px;color:var(--primary);margin-bottom:10px;padding:4px 0;"></div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button class="btn btn-outline btn-sm w-full" onclick="exportWeeklyIssues()">⚠️ 問題紀錄表（可印出）</button>
+        <button class="btn btn-primary btn-sm w-full" onclick="exportWeeklyReport()">📊 周報 Excel（3張）</button>
       </div>
     </div>
 
     <div class="card" style="margin-bottom:12px;">
       <div style="font-weight:600;margin-bottom:10px;">📅 月報</div>
-      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">本月：${dateStr(mp.start).slice(0,7)}</div>
-      <button class="btn btn-primary btn-sm w-full" onclick="exportMonthlyReport()">📊 本月月報 Excel</button>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label>選擇月份</label>
+        <input type="month" id="rptMonthRef" value="${thisMonth}">
+      </div>
+      <button class="btn btn-primary btn-sm w-full" onclick="exportMonthlyReport()">📊 月報 Excel（3張）</button>
     </div>
   `;
+  setTimeout(updateWeekLabel, 50);
+}
+
+function updateWeekLabel() {
+  const el = document.getElementById('rptWeekLabel');
+  if (!el) return;
+  const wr = getWeekRangeFromInput();
+  const endDay = new Date(wr.end.getTime() - 1000);
+  el.textContent = `週期：${dateStr(wr.start)} 08:00 ～ ${dateStr(endDay)} 07:59`;
+}
+
+function getWeekRangeFromInput() {
+  const val = document.getElementById('rptWeekDate')?.value || localDateStr(getWeekPeriod().start);
+  const start = new Date(val + 'T08:00:00');
+  const end = new Date(start);
+  end.setDate(end.getDate() + 7);
+  end.setHours(7, 59, 59, 999);
+  return { start, end };
+}
+
+function getMonthRangeFromInput() {
+  const val = document.getElementById('rptMonthRef')?.value || localDateStr(getMonthPeriod().start).slice(0,7);
+  const [y, m] = val.split('-').map(Number);
+  const start = new Date(y, m-1, 1, 0, 0, 0);
+  const end   = new Date(y, m,   1, 0, 0, 0);
+  return { start, end, prefix: val };
 }
 
 // ════════════════════════════════
@@ -2684,8 +2720,11 @@ function loadDateRecords(dateStr, cb) {
 
 // ① 每日整房流水表
 function exportDailyCleanLog() {
-  const bDate = getBusinessDate();
-  const records = Object.values(state.cleaningRecords).sort((a,b)=>(a.startTime||0)-(b.startTime||0));
+  const bDate = document.getElementById('rptDailyDate')?.value || localDateStr(new Date());
+  showToast('載入中...');
+  db.ref('/cleaning/' + bDate).once('value', snap => {
+    const records = Object.values(snap.val() || {}).sort((a,b)=>(a.startTime||0)-(b.startTime||0));
+    (function doExport() {
   const wb = XLSX.utils.book_new();
   const title = [`整房紀錄表　${bDate}`];
   const headers = ['房號','開始時間','結束時間','整理類型','用時(分)','房間','中間','廁所','樓梯','車庫'];
@@ -2711,13 +2750,14 @@ function exportDailyCleanLog() {
   XLSX.utils.book_append_sheet(wb, ws, `整房_${bDate}`);
   XLSX.writeFile(wb, `整房流水_${bDate}.xlsx`);
   showToast('✅ 整房流水表已下載');
+    })();
+  });
 }
 
 // ② 每日員工整房間數（含本月累積）
 async function exportDailyStaffCount() {
-  const bDate = getBusinessDate();
-  const now = new Date();
-  const prefix = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const bDate = document.getElementById('rptDailyDate')?.value || localDateStr(new Date());
+  const prefix = bDate.slice(0,7);
   showToast('載入月資料中...');
 
   db.ref('/cleaning').orderByKey().startAt(prefix).endAt(prefix+'\uf8ff').once('value', async snap => {
@@ -2735,8 +2775,9 @@ async function exportDailyStaffCount() {
         });
       });
     });
-    // Daily stats
-    const dailyStats = aggregateStats(Object.values(state.cleaningRecords));
+    // Daily stats from Firebase for selected date
+    const dayData = allData[bDate] || {};
+    const dailyStats = aggregateStats(Object.values(dayData));
     const wb = XLSX.utils.book_new();
     const headers = ['姓名','職位','整房','保養','樓梯保養','車庫保養','當日合計','本月整房累積','本月保養累積','本月合計'];
     const staffList = Object.keys({...dailyStats,...monthlyStats});
@@ -2831,14 +2872,13 @@ function exportPeriodInspection() {
 
 // ④ 每周問題紀錄
 function exportWeeklyIssues() {
-  const wp = getWeekPeriod();
-  const startTs = wp.start.getTime();
-  const endTs   = wp.end.getTime();
-  const period  = `${dateStr(wp.start)}～${dateStr(new Date(endTs-86400000))}`;
-  const sevenDaysAgo = Date.now() - 7*86400000;
+  const wr = getWeekRangeFromInput();
+  const startTs = wr.start.getTime();
+  const endTs   = wr.end.getTime();
+  const period  = `${dateStr(wr.start)}～${dateStr(new Date(wr.end.getTime()-86400000))}`;
 
   const issues = Object.values(state.issues)
-    .filter(iss => (iss.createdAt >= startTs && iss.createdAt < endTs) || iss.status === 'pending')
+    .filter(iss => iss.createdAt >= startTs && iss.createdAt <= endTs)
     .sort((a,b) => (a.createdAt||0)-(b.createdAt||0));
 
   const wb = XLSX.utils.book_new();
@@ -2847,7 +2887,7 @@ function exportWeeklyIssues() {
   const sevMap = {low:'輕微', mid:'中等', high:'嚴重'};
 
   const dataRows = issues.map(iss => {
-    const isOld = iss.status==='pending' && (iss.createdAt||0) < sevenDaysAgo;
+    const isOld = iss.status==='pending' && (iss.createdAt||0) < (startTs - 7*86400000);
     return [
       (isOld?'★ ':'')+iss.room,
       `${formatDate(iss.createdAt)} ${formatTime(iss.createdAt)}`,
@@ -2875,60 +2915,154 @@ function exportWeeklyIssues() {
   showToast('✅ 問題紀錄已下載（★為超過7天未解決）');
 }
 
-// ⑤ 每周周報
+// ⑤ 每周周報（整房統計＋特殊保養＋問題紀錄）
 function exportWeeklyReport() {
-  const wp = getWeekPeriod();
-  const startTs = wp.start.getTime();
-  const endTs   = wp.end.getTime();
-  const period  = `${dateStr(wp.start)}～${dateStr(new Date(endTs-86400000))}`;
-  showToast('載入本週資料...');
+  const wr = getWeekRangeFromInput();
+  const startTs = wr.start.getTime();
+  const endTs   = wr.end.getTime();
+  const period  = `${dateStr(wr.start)}～${dateStr(new Date(endTs-86400000))}`;
+  showToast('載入週資料...');
 
-  db.ref('/cleaning').orderByKey().startAt(dateStr(wp.start)).endAt(dateStr(new Date(endTs-86400000))+'\uf8ff').once('value', snap => {
+  db.ref('/cleaning').orderByKey()
+    .startAt(dateStr(wr.start)).endAt(dateStr(new Date(endTs-86400000))+'\uf8ff')
+    .once('value', snap => {
     const allData = snap.val() || {};
-    const allRecs = []; Object.values(allData).forEach(d=>Object.values(d).forEach(r=>allRecs.push(r)));
-    const stats = aggregateStats(allRecs.filter(r=>r.endTime));
+    const allRecs = [];
+    Object.values(allData).forEach(d => Object.values(d).forEach(r => allRecs.push(r)));
+    const doneRecs = allRecs.filter(r => r.endTime);
+    const stats = aggregateStats(doneRecs);
     const wb = XLSX.utils.book_new();
 
-    // Sheet: 周報摘要
-    const sumHeaders = ['姓名','職位','整房','保養','樓梯保養','車庫保養','合計'];
+    // Sheet 1: 人員整房統計
+    const sumHeaders = ['姓名','職位','正常整','大保養','樓梯保養','車庫保養','本週合計'];
     const sumRows = Object.entries(stats).map(([sid,s]) => {
       const st = state.staff[sid]; if(!st) return null;
-      return [st.name, ROLE_LABELS[st.role]?.zh||'', s.clean, s.maintain, s.stair, s.garage, Math.round((s.clean+s.maintain+s.stair+s.garage)*100)/100];
+      const total = Math.round((s.clean+s.maintain+s.stair+s.garage)*100)/100;
+      return [st.name, ROLE_LABELS[st.role]?.zh||'', s.clean, s.maintain, s.stair, s.garage, total];
     }).filter(Boolean);
-    const wsSum = XLSX.utils.aoa_to_sheet([[`周報　${period}`], sumHeaders, ...sumRows]);
+    if (sumRows.length) {
+      const tot = sumRows.reduce((acc,r)=>{ [2,3,4,5,6].forEach(i=>acc[i]=(acc[i]||0)+r[i]); return acc;}, ['合計','','','','','','']);
+      [2,3,4,5,6].forEach(i=>tot[i]=Math.round(tot[i]*100)/100);
+      sumRows.push(tot);
+    }
+    const wsSum = XLSX.utils.aoa_to_sheet([[`本週整房統計　${period}`], sumHeaders, ...sumRows]);
     wsSum['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:6}}];
     applyPrintStyle(wsSum, '', [10,8,6,6,8,8,8]);
-    XLSX.utils.book_append_sheet(wb, wsSum, `周報_${period.replace('～','-')}`);
+    XLSX.utils.book_append_sheet(wb, wsSum, '人員統計');
+
+    // Sheet 2: 特殊保養紀錄
+    const specRecs = doneRecs.filter(r => ['deep','stair','garage'].includes(r.type))
+                             .sort((a,b)=>(a.startTime||0)-(b.startTime||0));
+    const specHeaders = ['房號','日期','整理類型','開始時間','結束時間','人員'];
+    const specRows = specRecs.map(rec => {
+      const people = Object.values(rec.assignees||{}).flat().map(sid=>state.staff[sid]?.name||'').filter(Boolean);
+      return [rec.room, rec.startTime?localDateStr(new Date(rec.startTime)):'',
+        CLEANING_TYPES[rec.type]?.zh||rec.type, formatTime(rec.startTime), formatTime(rec.endTime),
+        [...new Set(people)].join('、')];
+    });
+    const wsSpec = XLSX.utils.aoa_to_sheet([[`特殊保養紀錄　${period}`], specHeaders, ...specRows]);
+    wsSpec['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:5}}];
+    applyPrintStyle(wsSpec, '', [6,10,10,8,8,20]);
+    XLSX.utils.book_append_sheet(wb, wsSpec, '特殊保養');
+
+    // Sheet 3: 問題紀錄
+    const issInWeek = Object.values(state.issues)
+      .filter(iss => iss.createdAt >= startTs && iss.createdAt <= endTs)
+      .sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+    const issHeaders = ['房號','回報時間','回報人','問題描述','嚴重','狀態','解決人','解決時間'];
+    const sevMap = {low:'輕微',mid:'中等',high:'嚴重'};
+    const issRows = issInWeek.map(iss=>[
+      iss.room, iss.createdAt?`${localDateStr(new Date(iss.createdAt))} ${formatTime(iss.createdAt)}`:'',
+      iss.reportedBy||'', iss.desc||'', sevMap[iss.severity]||'',
+      iss.status==='resolved'?'已解決':'待處理', iss.resolvedBy||'',
+      iss.resolvedAt?`${localDateStr(new Date(iss.resolvedAt))} ${formatTime(iss.resolvedAt)}`:''
+    ]);
+    const wsIss = XLSX.utils.aoa_to_sheet([[`本週問題紀錄　${period}`], issHeaders, ...issRows]);
+    wsIss['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:7}}];
+    applyPrintStyle(wsIss, '', [6,14,8,28,6,8,8,14]);
+    XLSX.utils.book_append_sheet(wb, wsIss, '問題紀錄');
 
     XLSX.writeFile(wb, `周報_${period.replace('～','-')}.xlsx`);
-    showToast('✅ 周報已下載');
+    showToast('✅ 周報已下載（3張工作表）');
   });
 }
 
-// ⑥ 每月月報
+// ⑥ 月報（整房統計＋問題紀錄＋特殊保養）
 function exportMonthlyReport() {
-  const mp = getMonthPeriod();
-  const prefix = `${mp.start.getFullYear()}-${String(mp.start.getMonth()+1).padStart(2,'0')}`;
+  const mr = getMonthRangeFromInput();
+  const prefix = mr.prefix;
+  const startTs = mr.start.getTime();
+  const endTs   = mr.end.getTime();
   showToast('載入月資料...');
 
-  db.ref('/cleaning').orderByKey().startAt(prefix).endAt(prefix+'\uf8ff').once('value', snap => {
+  db.ref('/cleaning').orderByKey().startAt(prefix).endAt(prefix+'').once('value', snap => {
     const allData = snap.val() || {};
-    const allRecs = []; Object.values(allData).forEach(d=>Object.values(d).forEach(r=>allRecs.push(r)));
-    const stats = aggregateStats(allRecs.filter(r=>r.endTime));
+    const allRecs = [];
+    Object.values(allData).forEach(d => Object.values(d).forEach(r => allRecs.push(r)));
+    const doneRecs = allRecs.filter(r => r.endTime);
+    const stats = aggregateStats(doneRecs);
     const wb = XLSX.utils.book_new();
 
-    const moHeaders = ['姓名','職位','整房','保養','樓梯保養','車庫保養','合計'];
+    // Sheet 1: 人員整房統計
+    const moHeaders = ['姓名','職位','正常整','大保養','樓梯保養','車庫保養','本月合計'];
     const moRows = Object.entries(stats).map(([sid,s]) => {
       const st = state.staff[sid]; if(!st) return null;
-      return [st.name, ROLE_LABELS[st.role]?.zh||'', s.clean, s.maintain, s.stair, s.garage, Math.round((s.clean+s.maintain+s.stair+s.garage)*100)/100];
+      const total = Math.round((s.clean+s.maintain+s.stair+s.garage)*100)/100;
+      return [st.name, ROLE_LABELS[st.role]?.zh||'', s.clean, s.maintain, s.stair, s.garage, total];
     }).filter(Boolean);
-    const prefix2 = `${mp.start.getFullYear()}-${String(mp.start.getMonth()+1).padStart(2,'0')}`;
-    const ws = XLSX.utils.aoa_to_sheet([[`月報\u3000${prefix2}`], moHeaders, ...moRows]);
-    ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:6}}];
-    applyPrintStyle(ws, '', [10,8,6,6,8,8,8]);
-    XLSX.utils.book_append_sheet(wb, ws, `月報_${prefix2}`);
-    XLSX.writeFile(wb, `月報_${prefix2}.xlsx`);
-    showToast('\u2705 月報已下載');
+    if (moRows.length) {
+      const tot = moRows.reduce((acc,r)=>{ [2,3,4,5,6].forEach(i=>acc[i]=(acc[i]||0)+r[i]); return acc; }, ['合計','','','','','','']);
+      [2,3,4,5,6].forEach(i=>tot[i]=Math.round(tot[i]*100)/100);
+      moRows.push(tot);
+    }
+    const wsMo = XLSX.utils.aoa_to_sheet([[`${prefix} 月份整房統計`], moHeaders, ...moRows]);
+    wsMo['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:6}}];
+    applyPrintStyle(wsMo, '', [10,8,6,6,8,8,8]);
+    XLSX.utils.book_append_sheet(wb, wsMo, '人員統計');
+
+    // Sheet 2: 特殊保養紀錄
+    const specTypes = ['deep','stair','garage'];
+    const specRecs = doneRecs.filter(r => specTypes.includes(r.type))
+                             .sort((a,b)=>(a.startTime||0)-(b.startTime||0));
+    const specHeaders = ['房號','日期','整理類型','開始時間','結束時間','人員'];
+    const specRows = specRecs.map(rec => {
+      const allStaff = Object.values(rec.assignees||{}).flat()
+        .map(sid=>state.staff[sid]?.name||'').filter(Boolean);
+      return [
+        rec.room,
+        rec.startTime ? localDateStr(new Date(rec.startTime)) : '',
+        CLEANING_TYPES[rec.type]?.zh || rec.type,
+        formatTime(rec.startTime), formatTime(rec.endTime),
+        [...new Set(allStaff)].join('、')
+      ];
+    });
+    const wsSpec = XLSX.utils.aoa_to_sheet([[`${prefix} 特殊保養紀錄`], specHeaders, ...specRows]);
+    wsSpec['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:5}}];
+    applyPrintStyle(wsSpec, '', [6,10,10,8,8,20]);
+    XLSX.utils.book_append_sheet(wb, wsSpec, '特殊保養');
+
+    // Sheet 3: 問題紀錄
+    const issuesInMonth = Object.values(state.issues)
+      .filter(iss => iss.createdAt >= startTs && iss.createdAt < endTs)
+      .sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+    const issHeaders = ['房號','回報時間','回報人','問題描述','嚴重','狀態','解決人','解決時間'];
+    const sevMap = {low:'輕微',mid:'中等',high:'嚴重'};
+    const issRows = issuesInMonth.map(iss=>[
+      iss.room,
+      iss.createdAt ? `${localDateStr(new Date(iss.createdAt))} ${formatTime(iss.createdAt)}` : '',
+      iss.reportedBy||'', iss.desc||'',
+      sevMap[iss.severity]||'',
+      iss.status==='resolved'?'已解決':'待處理',
+      iss.resolvedBy||'',
+      iss.resolvedAt ? `${localDateStr(new Date(iss.resolvedAt))} ${formatTime(iss.resolvedAt)}` : ''
+    ]);
+    const wsIss = XLSX.utils.aoa_to_sheet([[`${prefix} 問題紀錄`], issHeaders, ...issRows]);
+    wsIss['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:7}}];
+    applyPrintStyle(wsIss, '', [6,14,8,28,6,8,8,14]);
+    XLSX.utils.book_append_sheet(wb, wsIss, '問題紀錄');
+
+    XLSX.writeFile(wb, `月報_${prefix}.xlsx`);
+    showToast('✅ 月報已下載（3張工作表）');
   });
 }
 
