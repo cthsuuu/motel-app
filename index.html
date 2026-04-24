@@ -6,7 +6,8 @@
 <title>整房管理系統</title>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<!-- Storage not required: photos stored as base64 in Realtime Database -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 :root{
@@ -512,10 +513,11 @@ const CLEANING_TYPES = {
 };
 
 const AREAS = {
-  bathroom: {zh:'廁所', vi:'Phòng tắm'},
-  room:     {zh:'房間', vi:'Phòng'},
-  stair:    {zh:'樓梯', vi:'Cầu thang'},
-  garage:   {zh:'車庫', vi:'Nhà xe'}
+  room:     {zh:'房間',     vi:'Phòng'},
+  middle:   {zh:'中間',     vi:'Khu giữa'},
+  bathroom: {zh:'廁所',     vi:'Phòng tắm'},
+  stair:    {zh:'樓梯保養', vi:'Bảo dưỡng cầu thang'},
+  garage:   {zh:'車庫保養', vi:'Bảo dưỡng nhà xe'}
 };
 
 const INSPECTION_ITEMS = [
@@ -667,11 +669,10 @@ let state = {
 // ════════════════════════════════
 //  FIREBASE INIT
 // ════════════════════════════════
-let db, storage;
+let db;
 try {
   firebase.initializeApp(FIREBASE_CONFIG);
   db = firebase.database();
-  storage = firebase.storage();
 } catch(e) { console.error('Firebase init error:', e); }
 
 // ════════════════════════════════
@@ -1105,8 +1106,11 @@ function openRoomDetail(roomId) {
         <div style="font-size:13px;color:var(--text2);margin-top:4px;">${t('startTime')}: ${formatTime(rec.startTime)}</div>
         <div style="font-size:13px;margin-top:4px;">${CLEANING_TYPES[rec.type] ? `<span class="badge ${CLEANING_TYPES[rec.type].cls}">${ct(rec.type)}</span>` : ''}</div>
       </div>
-      <div style="font-size:13px;color:var(--text2);font-weight:600;margin-bottom:8px;">${t('areaAssign')}</div>
-      ${renderAreaAssignView(rec.assignees)}
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-size:13px;color:var(--text2);font-weight:600;">${t('areaAssign')}</div>
+        <button class="btn btn-sm btn-outline" onclick="openEditAssignees('${recId}','${roomId}')">✏️ 修改人員</button>
+      </div>
+      <div id="areaAssignDisplay_${recId}">${renderAreaAssignView(rec.assignees)}</div>
       <div class="divider"></div>
       <button class="btn btn-success btn-lg" onclick="completeCleaning('${recId}')">${t('complete')}</button>
       <div style="height:10px;"></div>
@@ -1158,8 +1162,10 @@ function openStartCleaning(roomId) {
   document.getElementById('scRoomNo').textContent = roomId;
   document.getElementById('scRoomNo').dataset.room = roomId;
 
-  // Build area assignment grid
-  const staffList = Object.entries(state.staff);
+  // Build area assignment grid — only current shift staff
+  const staffList = state.isAdmin
+    ? Object.entries(state.staff)
+    : state.currentStaff.map(sid => [sid, state.staff[sid]]).filter(([,s]) => s);
   const grid = document.getElementById('areaAssignGrid');
   grid.innerHTML = Object.entries(AREAS).map(([akey, alabel]) => `
     <div class="area-block">
@@ -1175,13 +1181,13 @@ function openStartCleaning(roomId) {
     </div>
   `).join('');
 
-  // Pre-select current staff for first area
+  // Pre-select current staff across all areas
   if (state.currentStaff.length > 0) {
-    state.currentStaff.forEach((sid, i) => {
-      const sel = document.getElementById(`assign_bathroom_${i}`);
-      if (sel) sel.value = sid;
-      const selR = document.getElementById(`assign_room_${i}`);
-      if (selR) selR.value = sid;
+    Object.keys(AREAS).forEach(akey => {
+      state.currentStaff.forEach((sid, i) => {
+        const sel = document.getElementById(`assign_${akey}_${i}`);
+        if (sel) sel.value = sid;
+      });
     });
   }
 
@@ -1235,6 +1241,69 @@ function completeCleaning(recId) {
       db.ref(`/roomStatus/${rec.room}`).update({ status: 'completed', endTime: endTime });
       closeModal('modalRoomDetail');
       showToast('✅ 完成整房');
+    })
+    .catch(e => showToast('❌ 錯誤: ' + e.message));
+}
+
+function openEditAssignees(recId, roomId) {
+  const rec = state.cleaningRecords[recId];
+  if (!rec) return;
+  const bDate = getBusinessDate();
+
+  // Inline edit form inside the detail modal
+  const display = document.getElementById(`areaAssignDisplay_${recId}`);
+  if (!display) return;
+
+  // Use all staff (or current shift)
+  const staffList = state.isAdmin
+    ? Object.entries(state.staff)
+    : state.currentStaff.map(sid => [sid, state.staff[sid]]).filter(([,s]) => s);
+
+  display.innerHTML = `
+    <div class="area-assign-grid" id="editAreaGrid_${recId}">
+      ${Object.entries(AREAS).map(([akey, alabel]) => {
+        const curPeople = (rec.assignees && rec.assignees[akey]) || [];
+        return `<div class="area-block">
+          <div class="area-block-title">${alabel[state.lang]}</div>
+          ${[0,1,2].map(i => `
+            <select id="edit_${akey}_${i}_${recId}" style="font-size:12px;margin-bottom:4px;">
+              <option value="">—</option>
+              ${staffList.map(([sid, s]) => `<option value="${sid}" ${curPeople[i]===sid?'selected':''}>${s.name}</option>`).join('')}
+            </select>
+          `).join('')}
+        </div>`;
+      }).join('')}
+    </div>
+    <button class="btn btn-primary w-full mt-3" onclick="saveEditAssignees('${recId}')">💾 儲存人員</button>
+  `;
+}
+
+function saveEditAssignees(recId) {
+  const bDate = getBusinessDate();
+  const assignees = {};
+  Object.keys(AREAS).forEach(akey => {
+    const people = [];
+    [0,1,2].forEach(i => {
+      const sel = document.getElementById(`edit_${akey}_${i}_${recId}`);
+      if (sel && sel.value) people.push(sel.value);
+    });
+    assignees[akey] = [...new Set(people)];
+  });
+
+  db.ref(`/cleaning/${bDate}/${recId}/assignees`).set(assignees)
+    .then(() => {
+      showToast('✅ 人員已更新');
+      // Refresh display
+      const rec = state.cleaningRecords[recId];
+      const display = document.getElementById(`areaAssignDisplay_${recId}`);
+      if (display && rec) {
+        const merged = { ...rec, assignees };
+        display.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;display:none;"></div>
+          ${renderAreaAssignView(assignees)}
+          <button class="btn btn-sm btn-outline mt-2" onclick="openEditAssignees('${recId}','')">✏️ 再次修改</button>
+        `;
+      }
     })
     .catch(e => showToast('❌ 錯誤: ' + e.message));
 }
@@ -1318,16 +1387,30 @@ function handlePhotoUpload(event) {
 
   files.forEach(file => {
     const photoId = uid();
-    const storageRef = storage.ref(`photos/${recId}/${photoId}`);
-    showToast('📸 上傳中...');
+    showToast('📸 壓縮處理中...');
 
-    storageRef.put(file).then(snap => snap.ref.getDownloadURL()).then(url => {
-      const uploader = state.currentStaff.map(sid => state.staff[sid] ? state.staff[sid].name : '').filter(Boolean).join('、') || '管理員';
-      db.ref(`/cleaning/${bDate}/${recId}/photos/${photoId}`).set({
-        url: url, uploadedBy: uploader, uploadedAt: Date.now()
-      });
-      showToast('✅ 照片上傳完成');
-    }).catch(e => showToast('❌ 上傳失敗: ' + e.message));
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        // Compress: max 800px wide, JPEG 70%
+        const canvas = document.createElement('canvas');
+        const MAX_W = 800;
+        let w = img.width, h = img.height;
+        if (w > MAX_W) { h = Math.round(h * MAX_W / w); w = MAX_W; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        const base64 = canvas.toDataURL('image/jpeg', 0.7);
+
+        const uploader = state.currentStaff.map(sid => state.staff[sid] ? state.staff[sid].name : '').filter(Boolean).join('、') || '管理員';
+        db.ref(`/cleaning/${bDate}/${recId}/photos/${photoId}`).set({
+          url: base64, uploadedBy: uploader, uploadedAt: Date.now()
+        }).then(() => showToast('✅ 照片已儲存'))
+          .catch(e => showToast('❌ 儲存失敗: ' + e.message));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
   });
 
   event.target.value = '';
@@ -1652,121 +1735,202 @@ function deleteStaff(sid) {
 // ════════════════════════════════
 //  REPORT
 // ════════════════════════════════
-function renderReport(container) {
-  const bDate = getBusinessDate();
-  const records = Object.entries(state.cleaningRecords).sort((a,b) => (a[1].startTime||0)-(b[1].startTime||0));
+// ─── Helper: get type category ───
+function getTypeCategory(type) {
+  if (type === 'normal' || type === 'rush') return 'clean';
+  if (type === 'deep') return 'maintain';
+  if (type === 'stair') return 'stair';
+  if (type === 'garage') return 'garage';
+  return 'clean';
+}
 
-  // Staff daily count
-  const staffDailyCount = {};
-  records.forEach(([, rec]) => {
-    if (!rec.assignees) return;
-    const people = new Set();
-    Object.values(rec.assignees).forEach(arr => {
-      if (Array.isArray(arr)) arr.forEach(sid => people.add(sid));
-    });
-    people.forEach(sid => {
-      staffDailyCount[sid] = (staffDailyCount[sid] || 0) + 1;
+// ─── Helper: credits per person = 1/unique_people (2 decimal) ───
+function getStaffCredits(rec) {
+  if (!rec.assignees) return {};
+  const people = new Set();
+  Object.values(rec.assignees).forEach(arr => {
+    if (Array.isArray(arr)) arr.forEach(sid => { if(sid) people.add(sid); });
+  });
+  if (people.size === 0) return {};
+  const credit = Math.round((1 / people.size) * 100) / 100;
+  const result = {};
+  people.forEach(sid => { result[sid] = credit; });
+  return result;
+}
+
+// ─── Aggregate records → staff stats {clean, maintain, stair, garage} ───
+function aggregateStats(records) {
+  const stats = {};
+  records.forEach(rec => {
+    if (!rec.endTime) return;
+    const credits = getStaffCredits(rec);
+    const cat = getTypeCategory(rec.type);
+    Object.entries(credits).forEach(([sid, credit]) => {
+      if (!stats[sid]) stats[sid] = { clean:0, maintain:0, stair:0, garage:0 };
+      stats[sid][cat] = Math.round((stats[sid][cat] + credit) * 100) / 100;
     });
   });
+  return stats;
+}
 
-  // Table rows
+function renderReport(container) {
+  const bDate = getBusinessDate();
+  const records = Object.entries(state.cleaningRecords)
+    .sort((a,b) => (a[1].startTime||0)-(b[1].startTime||0));
+  const recVals = records.map(([,r]) => r);
+  const dailyStats = aggregateStats(recVals);
+
   const tableRows = records.map(([, rec]) => {
     const areaStr = Object.entries(AREAS).map(([akey, alabel]) => {
       const people = (rec.assignees && rec.assignees[akey]) || [];
       const names = people.map(sid => state.staff[sid] ? state.staff[sid].name : '').filter(Boolean);
       return names.length ? `${alabel[state.lang]}:${names.join('/')}` : '';
     }).filter(Boolean).join(' ');
-
-    return `
-      <tr>
-        <td>${rec.room}</td>
-        <td>${formatTime(rec.startTime)}</td>
-        <td>${rec.endTime ? formatTime(rec.endTime) : t('cleaningInProgress')}</td>
-        <td><span class="badge ${CLEANING_TYPES[rec.type] ? CLEANING_TYPES[rec.type].cls : ''}">${ct(rec.type)}</span></td>
-        <td style="font-size:11px;">${areaStr}</td>
-      </tr>
-    `;
+    return `<tr>
+      <td style="padding:5px 4px;">${rec.room}</td>
+      <td style="padding:5px 4px;">${formatTime(rec.startTime)}</td>
+      <td style="padding:5px 4px;">${rec.endTime ? formatTime(rec.endTime) : '⏳'}</td>
+      <td style="padding:5px 4px;"><span class="badge ${CLEANING_TYPES[rec.type]?.cls||''}">${ct(rec.type)}</span></td>
+      <td style="padding:5px 4px;font-size:11px;">${areaStr}</td>
+    </tr>`;
   }).join('');
 
-  const staffCountRows = Object.entries(staffDailyCount).map(([sid, count]) => {
-    const s = state.staff[sid];
-    if (!s) return '';
+  const staffCountRows = Object.entries(dailyStats).map(([sid, s]) => {
+    const staff = state.staff[sid];
+    if (!staff) return '';
     return `<div class="report-row">
-      <div style="flex:1;font-weight:600;">${s.name}</div>
-      <div style="font-size:13px;color:var(--text2);">${ROLE_LABELS[s.role] ? ROLE_LABELS[s.role][state.lang] : ''}</div>
-      <div style="font-size:16px;font-weight:700;color:var(--primary);">${count} 間</div>
+      <div style="flex:1;font-weight:600;">${staff.name}</div>
+      <div style="font-size:12px;color:var(--text2);">
+        整房 <b>${s.clean}</b> ｜ 保養 <b>${s.maintain}</b> ｜ 樓梯 <b>${s.stair}</b> ｜ 車庫 <b>${s.garage}</b>
+      </div>
     </div>`;
   }).join('');
 
   container.innerHTML = `
     <div style="margin-bottom:12px;">
-      <div style="font-weight:600;font-size:16px;margin-bottom:4px;">📊 ${t('mgmtReport')}</div>
-      <div style="font-size:13px;color:var(--text2);">${t('reportDate')}: ${bDate} (08:00 ~ 隔日07:59)</div>
+      <div style="font-weight:600;font-size:16px;margin-bottom:4px;">📊 今日報表</div>
+      <div style="font-size:13px;color:var(--text2);">${bDate} (08:00 ~ 隔日 07:59)</div>
     </div>
-
-    <!-- Staff Count -->
     <div class="card" style="margin-bottom:12px;">
-      <div style="font-weight:600;margin-bottom:10px;">👥 ${t('staffCount')}</div>
-      ${staffCountRows || `<div style="color:var(--text2);font-size:14px;">${t('noRecords')}</div>`}
+      <div style="font-weight:600;margin-bottom:8px;">👥 今日員工間數</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">
+        整房/趕房 各算 1÷人數 間｜保養/樓梯/車庫 另計，計算至小數第2位
+      </div>
+      ${staffCountRows || `<div style="color:var(--text2);font-size:14px;">尚無完成紀錄</div>`}
     </div>
-
-    <!-- Cleaning Table -->
     <div class="card" style="margin-bottom:12px;overflow-x:auto;">
       <div style="font-weight:600;margin-bottom:10px;">🧹 整房流水表</div>
-      ${records.length === 0 ? `<div style="color:var(--text2);font-size:14px;">${t('noRecords')}</div>` : `
+      ${records.length === 0 ? `<div style="color:var(--text2);">尚無紀錄</div>` : `
         <table style="width:100%;border-collapse:collapse;font-size:12px;">
-          <thead>
-            <tr style="color:var(--text2);">
-              <th style="padding:6px 4px;text-align:left;border-bottom:1px solid var(--border);">房號</th>
-              <th style="padding:6px 4px;text-align:left;border-bottom:1px solid var(--border);">開始</th>
-              <th style="padding:6px 4px;text-align:left;border-bottom:1px solid var(--border);">結束</th>
-              <th style="padding:6px 4px;text-align:left;border-bottom:1px solid var(--border);">類型</th>
-              <th style="padding:6px 4px;text-align:left;border-bottom:1px solid var(--border);">區域分配</th>
-            </tr>
-          </thead>
+          <thead><tr style="color:var(--text2);border-bottom:1px solid var(--border);">
+            <th style="padding:5px 4px;text-align:left;">房號</th>
+            <th style="padding:5px 4px;text-align:left;">開始</th>
+            <th style="padding:5px 4px;text-align:left;">結束</th>
+            <th style="padding:5px 4px;text-align:left;">類型</th>
+            <th style="padding:5px 4px;text-align:left;">人員/區域</th>
+          </tr></thead>
           <tbody>${tableRows}</tbody>
-        </table>
-      `}
+        </table>`}
     </div>
-
-    <!-- Monthly Stats (placeholder) -->
     <div class="card" style="margin-bottom:12px;">
       <div style="font-weight:600;margin-bottom:6px;">📅 月統計</div>
-      <div style="font-size:13px;color:var(--text2);">本功能統計當月所有業務日整房資料</div>
-      <button class="btn btn-outline btn-sm mt-2" onclick="showMonthlyStats()">查看月統計</button>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:10px;">統計當月所有業務日完成紀錄</div>
+      <button class="btn btn-outline btn-sm" onclick="showMonthlyStats()">查看本月統計</button>
     </div>
-
-    <!-- Send Email -->
-    <button class="btn btn-primary btn-lg" onclick="sendReport()">
-      📧 ${t('sendEmail')} (${REPORT_EMAIL})
-    </button>
+    <div id="monthlyStatsArea"></div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+      <button class="btn btn-success btn-lg" onclick="exportExcel(false)">
+        📊 匯出今日 Excel
+      </button>
+      <button class="btn btn-primary btn-lg" onclick="exportExcel(true)">
+        📅 匯出月報表 Excel + 寄信
+      </button>
+    </div>
   `;
 }
 
-function sendReport() {
-  const bDate = getBusinessDate();
-  const records = Object.values(state.cleaningRecords);
+// ─── Excel Export (SheetJS) ───
+function buildWorkbook(bDate, records, monthlyStats) {
+  const wb = XLSX.utils.book_new();
 
-  let body = `整房管理系統報表 - ${bDate}\n\n`;
-  body += `整房流水表:\n`;
-  body += `房號\t開始時間\t結束時間\t類型\t人員\n`;
-
-  records.sort((a,b) => (a.startTime||0)-(b.startTime||0)).forEach(rec => {
-    const areaStr = Object.entries(AREAS).map(([akey, alabel]) => {
-      const people = (rec.assignees && rec.assignees[akey]) || [];
-      const names = people.map(sid => state.staff[sid] ? state.staff[sid].name : '').filter(Boolean);
-      return names.length ? `${alabel.zh}:${names.join('/')}` : '';
-    }).filter(Boolean).join(' ');
-
-    body += `${rec.room}\t${formatTime(rec.startTime)}\t${rec.endTime ? formatTime(rec.endTime) : '整理中'}\t${CLEANING_TYPES[rec.type] ? CLEANING_TYPES[rec.type].zh : rec.type}\t${areaStr}\n`;
+  // Sheet 1: 流水表
+  const logHeaders = ['房號','開始時間','結束時間','整理類型','房間','中間','廁所','樓梯保養','車庫保養','用時(分)'];
+  const logRows = records.map(rec => {
+    const g = key => {
+      const arr = (rec.assignees && rec.assignees[key]) || [];
+      return arr.map(sid => state.staff[sid]?.name || '').filter(Boolean).join('、');
+    };
+    const dur = rec.endTime ? Math.round((rec.endTime - rec.startTime)/60000) : '';
+    return [
+      rec.room,
+      rec.startTime ? formatTime(rec.startTime) : '',
+      rec.endTime   ? formatTime(rec.endTime) : '整理中',
+      CLEANING_TYPES[rec.type]?.zh || rec.type,
+      g('room'), g('middle'), g('bathroom'), g('stair'), g('garage'), dur
+    ];
   });
+  const ws1 = XLSX.utils.aoa_to_sheet([logHeaders, ...logRows]);
+  ws1['!cols'] = [6,8,8,10,10,10,10,12,12,8].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws1, '整房流水表');
 
-  body += `\n共 ${records.length} 筆紀錄`;
+  // Sheet 2: 員工每日統計
+  const dayStats = aggregateStats(records.filter(r => r.endTime));
+  const dayHeaders = ['姓名','職位','整房間數(正常+趕房)','保養間數(大保養)','樓梯保養間數','車庫保養間數','合計'];
+  const dayRows = Object.entries(dayStats).map(([sid, s]) => {
+    const st = state.staff[sid];
+    const total = Math.round((s.clean+s.maintain+s.stair+s.garage)*100)/100;
+    return [st?.name||sid, ROLE_LABELS[st?.role]?.zh||'', s.clean, s.maintain, s.stair, s.garage, total];
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet([dayHeaders, ...dayRows]);
+  ws2['!cols'] = [10,8,18,14,12,12,8].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws2, '員工每日間數');
 
-  const subject = `整房報表 ${bDate}`;
-  const mailtoLink = `mailto:${REPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  window.open(mailtoLink, '_blank');
-  showToast('📧 已開啟郵件程式');
+  // Sheet 3: 月統計
+  if (monthlyStats) {
+    const moHeaders = ['姓名','職位','整房間數','保養間數','樓梯保養間數','車庫保養間數','合計'];
+    const moRows = Object.entries(monthlyStats).map(([sid, s]) => {
+      const st = state.staff[sid];
+      const total = Math.round((s.clean+s.maintain+s.stair+s.garage)*100)/100;
+      return [st?.name||sid, ROLE_LABELS[st?.role]?.zh||'', s.clean, s.maintain, s.stair, s.garage, total];
+    });
+    const ws3 = XLSX.utils.aoa_to_sheet([moHeaders, ...moRows]);
+    ws3['!cols'] = [10,8,10,10,12,12,8].map(w=>({wch:w}));
+    XLSX.utils.book_append_sheet(wb, ws3, '員工月統計');
+  }
+  return wb;
+}
+
+function exportExcel(withMonthly) {
+  const bDate = getBusinessDate();
+  const records = Object.values(state.cleaningRecords)
+    .sort((a,b)=>(a.startTime||0)-(b.startTime||0));
+
+  if (!withMonthly) {
+    const wb = buildWorkbook(bDate, records, null);
+    XLSX.writeFile(wb, `整房報表_${bDate}.xlsx`);
+    showToast('✅ Excel 已下載');
+    return;
+  }
+
+  // Fetch monthly data then export + open email
+  const now = new Date();
+  const prefix = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  showToast('載入月資料中...');
+  db.ref('/cleaning').orderByKey().startAt(prefix).endAt(prefix+'\uf8ff').once('value', snap => {
+    const allData = snap.val() || {};
+    const allRecs = [];
+    Object.values(allData).forEach(d => Object.values(d).forEach(r => allRecs.push(r)));
+    const monthlyStats = aggregateStats(allRecs.filter(r => r.endTime));
+    const wb = buildWorkbook(bDate, records, monthlyStats);
+    const fileName = `整房月報表_${prefix}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+    showToast('✅ Excel 已下載，請附加至郵件');
+    setTimeout(() => {
+      const subj = encodeURIComponent(`整房報表 ${bDate}`);
+      const body = encodeURIComponent(`您好，\n\n附件為 ${bDate} 整房管理報表，請查收。\n（請手動附加下載的 Excel 檔案：${fileName}）\n\n整房管理系統`);
+      window.open(`mailto:${REPORT_EMAIL}?subject=${subj}&body=${body}`, '_blank');
+    }, 1500);
+  });
 }
 
 function showMonthlyStats() {
@@ -1775,30 +1939,37 @@ function showMonthlyStats() {
   const month = now.getMonth() + 1;
   const prefix = `${year}-${String(month).padStart(2,'0')}`;
 
-  // Query all records for this month
-  db.ref('/cleaning').orderByKey().startAt(prefix).endAt(prefix + '\uf8ff').once('value', snap => {
+  showToast('載入中...');
+  db.ref('/cleaning').orderByKey().startAt(prefix).endAt(prefix+'\uf8ff').once('value', snap => {
     const allData = snap.val() || {};
-    const staffMonthly = {};
+    const allRecs = [];
+    Object.values(allData).forEach(d => Object.values(d).forEach(r => allRecs.push(r)));
+    const stats = aggregateStats(allRecs.filter(r => r.endTime));
 
-    Object.values(allData).forEach(dayRecords => {
-      Object.values(dayRecords).forEach(rec => {
-        if (!rec.assignees) return;
-        const people = new Set();
-        Object.values(rec.assignees).forEach(arr => {
-          if (Array.isArray(arr)) arr.forEach(sid => people.add(sid));
-        });
-        people.forEach(sid => {
-          staffMonthly[sid] = (staffMonthly[sid] || 0) + 1;
-        });
-      });
-    });
+    const rows = Object.entries(stats).map(([sid, s]) => {
+      const staff = state.staff[sid];
+      if (!staff) return '';
+      const total = Math.round((s.clean+s.maintain+s.stair+s.garage)*100)/100;
+      return `<div class="report-row">
+        <div style="flex:1;font-weight:600;">${staff.name}</div>
+        <div style="font-size:12px;color:var(--text2);">
+          整房 <b>${s.clean}</b> ｜ 保養 <b>${s.maintain}</b> ｜ 樓梯 <b>${s.stair}</b> ｜ 車庫 <b>${s.garage}</b> ｜ 合計 <b>${total}</b>
+        </div>
+      </div>`;
+    }).join('');
 
-    const rows = Object.entries(staffMonthly).map(([sid, count]) => {
-      const s = state.staff[sid];
-      return s ? `${s.name}: ${count} 間` : '';
-    }).filter(Boolean).join('\n');
-
-    alert(`📅 ${year}年${month}月整房統計\n\n${rows || '無資料'}`);
+    const area = document.getElementById('monthlyStatsArea');
+    if (area) {
+      area.innerHTML = `
+        <div class="card" style="margin-bottom:12px;">
+          <div style="font-weight:600;margin-bottom:8px;">📅 ${year}年${month}月 員工月結表</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">
+            整房間數 ｜ 保養間數 ｜ 樓梯保養間數 ｜ 車庫保養間數
+          </div>
+          ${rows || '<div style="color:var(--text2);">本月尚無資料</div>'}
+        </div>`;
+    }
+    showToast(`✅ ${year}/${month} 月統計已載入`);
   });
 }
 
