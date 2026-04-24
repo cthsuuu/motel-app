@@ -873,7 +873,7 @@ let _subDate = null;
 let _cleanRef = null;
 function subscribeRecords(forceDate) {
   if (!db) return;
-  const bDate = forceDate || localDateStr(new Date());
+  const bDate = forceDate || getBusinessDate();
   if (_subDate === bDate && !forceDate) return;
   if (_cleanRef) _cleanRef.off('value');
   _subDate = bDate;
@@ -882,7 +882,7 @@ function subscribeRecords(forceDate) {
     state.cleaningRecords = snap.val() || {};
     renderRoomGrid();
     const lbl = document.getElementById('ovDateLabel');
-    if (lbl) lbl.textContent = '總覽日期：' + bDate;
+    if (lbl) lbl.textContent = '業務日：' + bDate;
   });
 }
 
@@ -896,9 +896,9 @@ function localDateStr(d) {
 
 // 手動更新總覽到今天
 function refreshOverview() {
-  const today = localDateStr(new Date());
-  subscribeRecords(today);
-  showToast('✅ 已更新總覽：' + today);
+  const bDate = getBusinessDate();
+  subscribeRecords(bDate);
+  showToast('✅ 已更新總覽：' + bDate);
 }
 
 // 載入近 N 天的整房紀錄（不影響總覽）
@@ -1008,7 +1008,7 @@ function setupListeners() {
   });
 
   // Today's cleaning records
-  subscribeRecords(localDateStr(new Date()));
+  subscribeRecords(getBusinessDate());
 
   // Issues
   db.ref('/issues').on('value', snap => {
@@ -1477,7 +1477,7 @@ function confirmStartCleaning() {
     assignees[akey] = [...new Set(people)];
   });
 
-  const today = localDateStr(new Date());
+  const today = getBusinessDate();
   const recId = uid();
   const record = {
     room: roomId,
@@ -1486,7 +1486,7 @@ function confirmStartCleaning() {
     startTime: Date.now(),
     endTime: null,
     status: 'cleaning',
-    _date: today
+    _date: getBusinessDate()
   };
 
   db.ref(`/cleaning/${today}/${recId}`).set(record)
@@ -1500,7 +1500,7 @@ function confirmStartCleaning() {
 
 function completeCleaning(recId) {
   if (!confirm(t('completeConfirm'))) return;
-  const today = localDateStr(new Date());
+  const today = getBusinessDate();
   const rec = state.cleaningRecords[recId];
   if (!rec) return;
 
@@ -1547,7 +1547,7 @@ function openEditAssignees(recId, roomId) {
 }
 
 function saveEditAssignees(recId) {
-  const today = localDateStr(new Date());
+  const today = getBusinessDate();
   const assignees = {};
   Object.keys(AREAS).forEach(akey => {
     const people = [];
@@ -1591,7 +1591,7 @@ function handlePhotoUpload(event) {
   const recId = state.photoUploadRecordId;
   if (!files.length || !recId) return;
 
-  const today = localDateStr(new Date());
+  const today = getBusinessDate();
 
   files.forEach(file => {
     const photoId = uid();
@@ -1924,7 +1924,7 @@ function completeInspection() {
   const record = {
     room: roomId,
     inspector: inspectorNames,
-    date: localDateStr(new Date()),
+    date: getBusinessDate(),
     time: Date.now(),
     cleaningStaff: cleanStaff,
     cleaningStatus: cleanStatus,
@@ -2080,7 +2080,7 @@ function adminDeleteRecord(recId) {
   if (!state.isAdmin) { showToast('❌ 僅管理員可刪除'); return; }
   if (!confirm('確定要刪除此整房紀錄？')) return;
   const rec = state.cleaningRecords[recId];
-  const recDate = rec?._date || localDateStr(new Date());
+  const recDate = rec?._date || getBusinessDate();
   db.ref(`/cleaning/${recDate}/${recId}`).remove().then(() => {
     if (rec) db.ref(`/roomStatus/${rec.room}`).remove();
     showToast('✅ 紀錄已刪除');
