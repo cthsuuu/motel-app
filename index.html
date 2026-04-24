@@ -96,9 +96,9 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
 
 /* ── BOTTOM NAV ── */
 #bottomNav{height:var(--nav-h);background:var(--bg2);border-top:1px solid var(--border);display:flex;align-items:stretch;flex-shrink:0;}
-.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:none;background:transparent;color:var(--text2);font-size:11px;transition:color .15s;}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;border:none;background:transparent;color:var(--text2);font-size:10px;transition:color .15s;}
 .nav-item.active{color:var(--primary);}
-.nav-item .nav-icon{font-size:22px;}
+.nav-item .nav-icon{font-size:20px;}
 
 /* ── FLOOR FILTER ── */
 .floor-filter{display:flex;gap:6px;padding:12px 14px 0;overflow-x:auto;flex-shrink:0;}
@@ -109,9 +109,9 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
 .room-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 14px 14px;}
 .room-card{background:var(--bg2);border-radius:var(--radius-sm);padding:10px 8px 10px 12px;cursor:pointer;position:relative;overflow:hidden;border-left:4px solid var(--text3);min-height:80px;}
 .room-card.status-pending{border-left-color:#666;}
-.room-card.status-cleaning{border-left-color:var(--warning);}
-.room-card.status-completed{border-left-color:var(--success);}
-.room-card.status-problem{border-left-color:var(--danger);}
+.room-card.status-cleaning{border-left-color:var(--success);}
+.room-card.status-completed{border-left-color:var(--primary);}
+.room-card.status-problem{border-left-color:#666;}
 .room-card .room-no{font-size:17px;font-weight:700;}
 .room-card .room-type{font-size:10px;margin-top:2px;}
 .room-card .room-staff{font-size:11px;color:var(--text2);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -221,8 +221,8 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
 .insp-reason{width:100%;margin-top:5px;font-size:12px;padding:6px 8px;}
 /* ── OVERVIEW ROOM CARD ── */
 .ov-room{background:var(--bg2);border-radius:var(--radius-sm);padding:8px 6px 8px 10px;cursor:pointer;border-left:4px solid #555;min-height:64px;}
-.ov-room.ov-ok{border-left-color:var(--success);}
-.ov-room.ov-defect{border-left-color:var(--danger);}
+.ov-room.ov-ok{border-left-color:var(--primary);}
+.ov-room.ov-inspected{border-left-color:var(--primary);}
 .ov-room .ov-no{font-size:15px;font-weight:700;}
 .ov-room .ov-date{font-size:10px;color:var(--text2);margin-top:2px;}
 .ov-room .ov-status{font-size:10px;margin-top:2px;}
@@ -281,8 +281,13 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
     <!-- ── Tab 2: Records ── -->
     <div id="tab-records" class="tab-page">
       <div class="section-hdr">
-        <div class="section-title" id="lbl-todayRecords">📋 當日整房紀錄</div>
+        <div class="section-title">📋 當日紀錄</div>
         <div id="businessDateLabel" style="font-size:12px;color:var(--text2);"></div>
+      </div>
+      <div style="display:flex;gap:6px;padding:0 14px 8px;flex-shrink:0;">
+        <button class="floor-btn active" data-rec="all"   onclick="setRecFilter('all')">全部</button>
+        <button class="floor-btn" data-rec="clean" onclick="setRecFilter('clean')">🧹 整房</button>
+        <button class="floor-btn" data-rec="insp"  onclick="setRecFilter('insp')">🔍 查房</button>
       </div>
       <div id="recordsList"></div>
     </div>
@@ -336,15 +341,16 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
           </div>
           <button class="btn btn-primary w-full mt-2" onclick="startInspection()">🔍 開始查房</button>
         </div>
+        <button class="btn btn-outline w-full mt-2" onclick="openInspPeriodModal()" style="margin-top:8px;">
+          📅 設定查房週期
+        </button>
+        <div id="periodInfoBanner" style="font-size:12px;color:var(--primary);margin-top:8px;text-align:center;"></div>
+        <div id="periodRecordsList" style="margin-top:12px;"></div>
       </div>
     </div>
 
     <!-- ── Tab 5: Management ── -->
     <div id="tab-management" class="tab-page">
-      <div class="mgmt-tabs">
-        <button class="mgmt-tab active" data-mgmt="report" onclick="setMgmt('report')" id="lbl-mgmtReport">📊 報表</button>
-        <button class="mgmt-tab" data-mgmt="staff" onclick="setMgmt('staff')" id="lbl-mgmtStaff">👥 人員管理</button>
-      </div>
       <div id="mgmtContent" style="padding:14px;"></div>
     </div>
   </div>
@@ -362,6 +368,9 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
     </button>
     <button class="nav-item" data-tab="inspection" onclick="switchTab('inspection')">
       <span class="nav-icon">🔍</span><span id="nav-inspection">查房</span>
+    </button>
+    <button class="nav-item" data-tab="reports" onclick="switchTab('reports')">
+      <span class="nav-icon">📊</span><span id="nav-reports">報表</span>
     </button>
     <button class="nav-item" data-tab="management" onclick="switchTab('management')">
       <span class="nav-icon">⚙️</span><span id="nav-management">管理</span>
@@ -426,7 +435,10 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
       <select id="issueRoom"></select>
     </div>
     <div class="form-group">
-      <label id="lbl-issueDesc">問題描述</label>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <label id="lbl-issueDesc" style="margin:0;">問題描述</label>
+        <button class="btn btn-sm btn-outline" onclick="translateIssueDesc()" style="font-size:11px;padding:3px 8px;">🔄 越→中</button>
+      </div>
       <textarea id="issueDesc" rows="3" placeholder="請描述問題..."></textarea>
     </div>
     <div class="form-group">
@@ -462,6 +474,33 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
     <div style="margin-top:16px;">
       <button class="btn btn-success btn-lg" onclick="completeInspection()">✅ 完成查房</button>
     </div>
+  </div>
+</div>
+
+<!-- Inspection Period Modal -->
+<div id="modalInspPeriod" class="modal-overlay center hidden" onclick="closeModalOverlay(event,'modalInspPeriod')">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span>📅 設定查房週期</span>
+      <span class="modal-close" onclick="closeModal('modalInspPeriod')">✕</span>
+    </div>
+    <div class="form-group">
+      <label>開始日期</label>
+      <input type="date" id="inspPeriodStart">
+    </div>
+    <div class="form-group">
+      <label>結束日期</label>
+      <input type="date" id="inspPeriodEnd">
+    </div>
+    <div class="form-group">
+      <label>週期說明（選填）</label>
+      <input type="text" id="inspPeriodLabel" placeholder="例：4月第一週查房">
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+      <button class="btn btn-primary btn-lg" onclick="saveInspPeriod()">✅ 設定週期</button>
+      <button class="btn btn-warning btn-lg" onclick="resetInspPeriod()">🔄 重置查房畫面</button>
+    </div>
+    <div id="currentPeriodInfo" style="font-size:12px;color:var(--text2);margin-top:12px;text-align:center;"></div>
   </div>
 </div>
 
@@ -808,7 +847,9 @@ let state = {
   currentInspRoom: null,
   currentInspItems: {},
   photoUploadRecordId: null,
-  syncTime: null
+  syncTime: null,
+  inspPeriod: null,
+  recFilter: 'all'
 };
 
 // ════════════════════════════════
@@ -1169,6 +1210,7 @@ function switchTab(tab) {
   if (tab === 'issues') renderIssues();
   if (tab === 'inspection') { renderInspectRooms(); renderInspectHistory(); }
   if (tab === 'management') renderManagement();
+  if (tab === 'reports') renderReports();
 }
 </script>
 <script>
@@ -1187,23 +1229,16 @@ function setFloor(floor) {
 //  ROOM STATUS COMPUTATION
 // ════════════════════════════════
 function computeRoomStatus(roomId) {
-  // Check for unresolved issues
-  const hasIssue = Object.values(state.issues).some(
-    iss => iss.room === roomId && iss.status === 'pending'
-  );
-
-  // Check today's cleaning records
-  const bDate = getBusinessDate();
   const records = Object.values(state.cleaningRecords);
   const roomRecs = records.filter(r => r.room === roomId);
-
   const cleaning = roomRecs.find(r => !r.endTime);
   const completed = roomRecs.find(r => r.endTime);
-
   if (cleaning) return 'cleaning';
-  if (hasIssue) return 'problem';
   if (completed) return 'completed';
   return 'pending';
+}
+function roomHasProblem(roomId) {
+  return Object.values(state.issues).some(iss => iss.room === roomId && iss.status === 'pending');
 }
 
 function getRoomTypeLabel(roomId) {
@@ -1253,7 +1288,7 @@ function renderRoomGrid() {
     const typeLabel = getRoomTypeLabel(roomId);
     const staffLabel = getRoomStaffLabel(roomId);
     const timeLabel = getRoomTimeLabel(roomId);
-    const hasIssue = Object.values(state.issues).some(iss => iss.room === roomId && iss.status === 'pending');
+    const hasIssue = roomHasProblem(roomId);
 
     return `
       <div class="room-card status-${status}" onclick="openRoomDetail('${roomId}')">
@@ -1728,26 +1763,29 @@ function renderInspectOverview() {
   if (!grid) return;
   const now = Date.now();
   const cutoff = now - (10 * 24 * 60 * 60 * 1000);
-  // Latest inspection per room within 10 days
+  // Use custom period if set, else last 10 days
+  const periodStart = state.inspPeriod && state.inspPeriod.start
+    ? new Date(state.inspPeriod.start + 'T08:00:00').getTime()
+    : cutoff;
+  const periodEnd = state.inspPeriod && state.inspPeriod.end
+    ? new Date(state.inspPeriod.end + 'T23:59:59').getTime()
+    : now;
+
   const roomLatest = {};
   Object.values(state.inspections).forEach(insp => {
-    if (!insp.time || insp.time < cutoff) return;
+    if (!insp.time || insp.time < periodStart || insp.time > periodEnd) return;
     const r = insp.room;
     if (!roomLatest[r] || insp.time > roomLatest[r].time) roomLatest[r] = insp;
   });
   const rooms = (state.ovFloor && state.ovFloor !== 'all') ? (ROOMS[state.ovFloor]||[]) : ALL_ROOMS;
   grid.innerHTML = rooms.map(roomId => {
     const insp = roomLatest[roomId];
-    const defCnt = insp ? Object.values(insp.items||{}).filter(v=>v&&v.status==='defect').length : 0;
-    const cls = insp ? (defCnt > 0 ? 'ov-defect' : 'ov-ok') : '';
-    return `<div class="ov-room ${cls}" onclick="inspectRoom('${roomId}')">
+    return `<div class="ov-room ${insp ? 'ov-inspected' : ''}" onclick="inspectRoom('${roomId}')">
       <div class="ov-no">${roomId}</div>
       ${insp
-        ? `<div class="ov-date">${formatDate(insp.time)}</div>
-           <div class="ov-status" style="color:${defCnt>0?'var(--danger)':'var(--success)'}">
-             ${defCnt>0 ? '⚠️ '+defCnt+'缺失' : '✓ 正常'}
-           </div>`
-        : `<div class="ov-status" style="color:var(--text3);">未查</div>`}
+        ? `<div class="ov-date" style="font-size:10px;color:var(--primary);">${formatDate(insp.time)}</div>
+           <div style="font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${insp.inspector||''}</div>`
+        : `<div class="ov-status" style="font-size:10px;color:var(--text3);">未查</div>`}
     </div>`;
   }).join('');
 }
@@ -1982,23 +2020,10 @@ function exportInspectionExcel() {
 // ════════════════════════════════
 //  MANAGEMENT TAB
 // ════════════════════════════════
-function setMgmt(tab) {
-  state.mgmtTab = tab;
-  document.querySelectorAll('.mgmt-tab').forEach(b => {
-    b.classList.toggle('active', b.dataset.mgmt === tab);
-  });
-  renderManagement();
-}
-
 function renderManagement() {
   const container = document.getElementById('mgmtContent');
   if (!container) return;
-
-  if (state.mgmtTab === 'staff') {
-    renderStaffManagement(container);
-  } else {
-    renderReport(container);
-  }
+  renderStaffManagement(container);
 }
 
 function renderStaffManagement(container) {
@@ -2324,6 +2349,564 @@ function showMonthlyStats() {
   });
 }
 
+
+// ════════════════════════════════
+//  RECORDS TAB (combined)
+// ════════════════════════════════
+function setRecFilter(f) {
+  state.recFilter = f;
+  document.querySelectorAll('[data-rec]').forEach(b => b.classList.toggle('active', b.dataset.rec === f));
+  renderRecords();
+}
+
+function renderRecords() {
+  const container = document.getElementById('recordsList');
+  if (!container) return;
+  const bDate = getBusinessDate();
+  document.getElementById('businessDateLabel').textContent = bDate;
+
+  // Combine cleaning + inspection records, sorted by time desc
+  const cleanEntries = Object.entries(state.cleaningRecords).map(([id, r]) => ({...r, _id:id, _type:'clean'}));
+  const inspEntries  = Object.values(state.inspections).filter(r => r.date === bDate).map((r,i) => ({...r, _type:'insp'}));
+  const combined = [...cleanEntries, ...inspEntries].sort((a,b) => (b.startTime||b.time||0)-(a.startTime||a.time||0));
+
+  const filtered = combined.filter(r => {
+    if (state.recFilter === 'clean') return r._type === 'clean';
+    if (state.recFilter === 'insp')  return r._type === 'insp';
+    return true;
+  });
+
+  if (!filtered.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div>今日尚無紀錄</div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(rec => {
+    if (rec._type === 'clean') return renderCleanRecord(rec);
+    if (rec._type === 'insp')  return renderInspRecord(rec);
+    return '';
+  }).join('');
+}
+
+function renderCleanRecord(rec) {
+  const recId = rec._id;
+  const typeInfo = CLEANING_TYPES[rec.type] || {};
+  const isComplete = !!rec.endTime;
+  const areaHtml = Object.entries(AREAS).map(([akey, alabel]) => {
+    const people = (rec.assignees && rec.assignees[akey]) || [];
+    const names = people.map(sid => state.staff[sid]?.name||'').filter(Boolean);
+    return names.length ? `<div class="area-tag">${alabel[state.lang]}: ${names.join('、')}</div>` : '';
+  }).join('');
+
+  return `<div class="record-card">
+    <div class="record-head">
+      <div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:16px;">🧹</span>
+          <div class="record-room">🏠 ${rec.room}</div>
+        </div>
+        <div class="record-times">
+          ${t('startTime')}: ${formatTime(rec.startTime)}
+          ${isComplete ? ` ｜ ${t('endTime')}: ${formatTime(rec.endTime)} (${formatDuration(rec.startTime,rec.endTime)})` : ` ｜ <span style="color:var(--warning)">⏳ 整理中</span>`}
+        </div>
+      </div>
+      <span class="badge ${typeInfo.cls||''}">${ct(rec.type)}</span>
+    </div>
+    <div class="record-areas">${areaHtml}</div>
+    ${state.isAdmin ? `<div style="margin-top:8px;text-align:right;">
+      <button class="btn btn-sm btn-danger" style="opacity:.7;" onclick="adminDeleteRecord('${recId}')">🗑 刪除</button>
+    </div>` : ''}
+  </div>`;
+}
+
+function renderInspRecord(rec) {
+  const allItems = INSPECTION_CATEGORIES.flatMap(c => c.items);
+  const defects = allItems.filter(i => rec.items?.[i.id]?.status === 'defect');
+  return `<div class="record-card" style="border-left:4px solid var(--primary);">
+    <div class="record-head">
+      <div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:16px;">🔍</span>
+          <div class="record-room">🏠 ${rec.room}</div>
+        </div>
+        <div class="record-times">查房：${formatTime(rec.time)} ｜ ${rec.inspector||''}</div>
+      </div>
+      <span class="badge badge-normal">${rec.setCount||0}/${rec.totalItems||0}</span>
+    </div>
+    ${defects.length ? `<div style="font-size:12px;color:var(--danger);margin-top:6px;">⚠️ 缺失：${defects.map(i=>i.name).join('、')}</div>` : `<div style="font-size:12px;color:var(--success);margin-top:4px;">✓ 全數正常</div>`}
+  </div>`;
+}
+
+// ════════════════════════════════
+//  ISSUE TRANSLATION
+// ════════════════════════════════
+async function translateIssueDesc() {
+  const el = document.getElementById('issueDesc');
+  const text = el.value.trim();
+  if (!text) { showToast('請先輸入問題描述'); return; }
+  showToast('🔄 翻譯中...');
+  try {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=vi|zh-CN&de=hmotel.jt@gmail.com`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.responseStatus === 200 && data.responseData.translatedText) {
+      el.value = data.responseData.translatedText;
+      showToast('✅ 翻譯完成');
+    } else {
+      showToast('❌ 翻譯失敗，請手動輸入');
+    }
+  } catch(e) {
+    showToast('❌ 無法連線翻譯服務');
+  }
+}
+
+// ════════════════════════════════
+//  INSPECTION PERIOD
+// ════════════════════════════════
+function openInspPeriodModal() {
+  const p = state.inspPeriod;
+  if (p) {
+    document.getElementById('inspPeriodStart').value = p.start || '';
+    document.getElementById('inspPeriodEnd').value   = p.end   || '';
+    document.getElementById('inspPeriodLabel').value  = p.label || '';
+    document.getElementById('currentPeriodInfo').textContent = `目前週期：${p.start} ～ ${p.end}`;
+  } else {
+    // Default: today to 7 days later
+    const today = new Date().toISOString().split('T')[0];
+    const d7 = new Date(Date.now() + 7*86400000).toISOString().split('T')[0];
+    document.getElementById('inspPeriodStart').value = today;
+    document.getElementById('inspPeriodEnd').value   = d7;
+    document.getElementById('inspPeriodLabel').value  = '';
+    document.getElementById('currentPeriodInfo').textContent = '尚未設定週期';
+  }
+  showModal('modalInspPeriod');
+}
+
+function saveInspPeriod() {
+  const start = document.getElementById('inspPeriodStart').value;
+  const end   = document.getElementById('inspPeriodEnd').value;
+  const label = document.getElementById('inspPeriodLabel').value.trim();
+  if (!start || !end) { showToast('請選擇開始與結束日期'); return; }
+  if (start > end) { showToast('結束日期需晚於開始日期'); return; }
+  state.inspPeriod = { start, end, label };
+  db.ref('/config/inspPeriod').set(state.inspPeriod);
+  closeModal('modalInspPeriod');
+  showToast(`✅ 查房週期已設定：${start} ～ ${end}`);
+  updatePeriodBanner();
+  renderInspectOverview();
+  renderPeriodRecords();
+}
+
+function resetInspPeriod() {
+  state.inspPeriod = null;
+  db.ref('/config/inspPeriod').remove();
+  document.getElementById('currentPeriodInfo').textContent = '已重置';
+  closeModal('modalInspPeriod');
+  showToast('🔄 查房畫面已重置（顯示10天）');
+  updatePeriodBanner();
+  renderInspectOverview();
+  renderPeriodRecords();
+}
+
+function updatePeriodBanner() {
+  const el = document.getElementById('periodInfoBanner');
+  if (!el) return;
+  if (state.inspPeriod) {
+    el.textContent = `📅 查房週期：${state.inspPeriod.start} ～ ${state.inspPeriod.end}${state.inspPeriod.label ? ' (' + state.inspPeriod.label + ')' : ''}`;
+  } else {
+    el.textContent = '（顯示最近10天，可設定查房週期）';
+  }
+}
+
+function renderPeriodRecords() {
+  const container = document.getElementById('periodRecordsList');
+  if (!container) return;
+  const now = Date.now();
+  const cutoff = state.inspPeriod && state.inspPeriod.start
+    ? new Date(state.inspPeriod.start + 'T08:00:00').getTime()
+    : now - 10*86400000;
+  const endCut = state.inspPeriod && state.inspPeriod.end
+    ? new Date(state.inspPeriod.end + 'T23:59:59').getTime()
+    : now;
+
+  const recs = Object.entries(state.inspections)
+    .filter(([,r]) => r.time >= cutoff && r.time <= endCut)
+    .sort((a,b) => (b[1].time||0)-(a[1].time||0));
+
+  if (!recs.length) {
+    container.innerHTML = `<div style="font-size:13px;color:var(--text3);padding:8px 0;">本週期尚無查房紀錄</div>`;
+    return;
+  }
+  const titlePeriod = state.inspPeriod ? `${state.inspPeriod.start} ～ ${state.inspPeriod.end}` : '最近10天';
+  container.innerHTML = `
+    <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:8px;">本階段查房紀錄（${titlePeriod}）</div>
+    ${recs.map(([rid, rec]) => {
+      const defCnt = INSPECTION_CATEGORIES.flatMap(c=>c.items).filter(i=>rec.items?.[i.id]?.status==='defect').length;
+      return `<div class="inspect-card" style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-size:15px;font-weight:700;color:var(--primary);">🏠 ${rec.room}</div>
+          ${defCnt > 0 ? `<span style="font-size:11px;color:var(--danger);">⚠️ ${defCnt}缺失</span>` : `<span style="font-size:11px;color:var(--success);">✓ 正常</span>`}
+        </div>
+        <div style="font-size:12px;color:var(--text2);margin-top:2px;">${formatDate(rec.time)} ${formatTime(rec.time)} ｜ ${rec.inspector||''}</div>
+        ${state.isAdmin ? `<button class="btn btn-sm btn-danger" style="opacity:.7;margin-top:6px;" onclick="adminDeleteInspection('${rid}')">🗑</button>` : ''}
+      </div>`;
+    }).join('')}`;
+}
+
+// Load period from Firebase on init
+function loadInspPeriod() {
+  db.ref('/config/inspPeriod').once('value', snap => {
+    const p = snap.val();
+    if (p) {
+      state.inspPeriod = p;
+      updatePeriodBanner();
+    }
+  });
+}
+
+// ════════════════════════════════
+//  WEEK / MONTH PERIOD HELPERS
+// ════════════════════════════════
+function getWeekPeriod() {
+  const now = new Date();
+  const dow = now.getDay(); // 0=Sun
+  const daysFromMon = dow === 0 ? 6 : dow - 1;
+  const weekStart = new Date(now);
+  weekStart.setDate(weekStart.getDate() - daysFromMon);
+  weekStart.setHours(8,0,0,0);
+  if (dow === 1 && now.getHours() < 8) weekStart.setDate(weekStart.getDate() - 7);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  return { start: weekStart, end: weekEnd };
+}
+
+function getMonthPeriod() {
+  const now = new Date();
+  const mStart = new Date(now.getFullYear(), now.getMonth(), 1, 8, 0, 0);
+  if (now.getDate() === 1 && now.getHours() < 8) mStart.setMonth(mStart.getMonth()-1);
+  const mEnd = new Date(mStart.getFullYear(), mStart.getMonth()+1, 1, 8, 0, 0);
+  return { start: mStart, end: mEnd };
+}
+
+function dateStr(d) { return d.toISOString().split('T')[0]; }
+function periodLabel(s, e) { return `${dateStr(s).slice(5)}~${dateStr(e).slice(5).slice(0,5)}`; }
+
+// ════════════════════════════════
+//  REPORTS TAB
+// ════════════════════════════════
+function renderReports() {
+  const container = document.getElementById('reportsContent');
+  if (!container) return;
+  const bDate = getBusinessDate();
+  const wp = getWeekPeriod();
+  const mp = getMonthPeriod();
+  container.innerHTML = `
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">
+      今日業務日：${bDate}｜本週：${dateStr(wp.start)}～${dateStr(new Date(wp.end.getTime()-86400000))}｜本月：${dateStr(mp.start).slice(0,7)}
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-weight:600;margin-bottom:10px;">📅 每日報表</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button class="btn btn-outline btn-sm w-full" onclick="exportDailyCleanLog()">🧹 每日整房流水表（可印出）</button>
+        <button class="btn btn-outline btn-sm w-full" onclick="exportDailyStaffCount()">👥 每日員工整房間數</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-weight:600;margin-bottom:10px;">📅 查房報表</div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <label>查房期間起</label>
+        <input type="date" id="rptInspStart" value="${state.inspPeriod?.start || dateStr(wp.start)}">
+      </div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label>查房期間迄</label>
+        <input type="date" id="rptInspEnd" value="${state.inspPeriod?.end || dateStr(new Date(wp.end.getTime()-86400000))}">
+      </div>
+      <button class="btn btn-outline btn-sm w-full" onclick="exportPeriodInspection()">🔍 期間查房流水表</button>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-weight:600;margin-bottom:10px;">📅 週報</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">本週：${dateStr(wp.start)} ～ ${dateStr(new Date(wp.end.getTime()-86400000))}</div>
+      <button class="btn btn-outline btn-sm w-full" onclick="exportWeeklyIssues()">⚠️ 每周問題紀錄（可印出）</button>
+      <div style="margin-top:8px;">
+        <button class="btn btn-primary btn-sm w-full" onclick="exportWeeklyReport()">📊 本週周報 Excel</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-weight:600;margin-bottom:10px;">📅 月報</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;">本月：${dateStr(mp.start).slice(0,7)}</div>
+      <button class="btn btn-primary btn-sm w-full" onclick="exportMonthlyReport()">📊 本月月報 Excel</button>
+    </div>
+  `;
+}
+
+// ════════════════════════════════
+//  EXCEL EXPORTS
+// ════════════════════════════════
+function applyPrintStyle(ws, printTitle, cols) {
+  ws['!cols'] = cols.map(w => ({wch:w}));
+  ws['!pageSetup'] = { paperSize:9, orientation:'portrait', fitToWidth:1, fitToHeight:0, scale:90 };
+  ws['!margins'] = { left:1.8/2.54, right:1.8/2.54, top:2.54/2.54, bottom:2.54/2.54, header:0.5/2.54, footer:0.5/2.54 };
+  ws['!printHeader'] = true;
+  return ws;
+}
+
+function loadDateRecords(dateStr, cb) {
+  db.ref('/cleaning/' + dateStr).once('value', snap => cb(snap.val() || {}));
+}
+
+// ① 每日整房流水表
+function exportDailyCleanLog() {
+  const bDate = getBusinessDate();
+  const records = Object.values(state.cleaningRecords).sort((a,b)=>(a.startTime||0)-(b.startTime||0));
+  const wb = XLSX.utils.book_new();
+  const title = [`整房紀錄表　${bDate}`];
+  const headers = ['房號','開始時間','結束時間','整理類型','用時(分)','房間','中間','廁所','樓梯','車庫'];
+  const rows = records.map(rec => {
+    const g = k => ((rec.assignees&&rec.assignees[k])||[]).map(s=>state.staff[s]?.name||'').filter(Boolean).join('、');
+    return [
+      rec.room,
+      formatTime(rec.startTime),
+      rec.endTime ? formatTime(rec.endTime) : '整理中',
+      CLEANING_TYPES[rec.type]?.zh || rec.type,
+      rec.endTime ? Math.round((rec.endTime-rec.startTime)/60000) : '',
+      g('room'), g('middle'), g('bathroom'), g('stair'), g('garage')
+    ];
+  });
+  // Add signature row
+  const sigRow = ['','','','','','主管簽名：','___________________','','',''];
+  const ws = XLSX.utils.aoa_to_sheet([title, headers, ...rows, [], sigRow]);
+  ws['!merges'] = [
+    {s:{r:0,c:0}, e:{r:0,c:9}}, // title merge
+    {s:{r:rows.length+3,c:5}, e:{r:rows.length+3,c:9}} // sig merge
+  ];
+  applyPrintStyle(ws, title[0], [6,8,8,10,6,10,10,10,10,10]);
+  XLSX.utils.book_append_sheet(wb, ws, `整房_${bDate}`);
+  XLSX.writeFile(wb, `整房流水_${bDate}.xlsx`);
+  showToast('✅ 整房流水表已下載');
+}
+
+// ② 每日員工整房間數（含本月累積）
+async function exportDailyStaffCount() {
+  const bDate = getBusinessDate();
+  const now = new Date();
+  const prefix = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  showToast('載入月資料中...');
+
+  db.ref('/cleaning').orderByKey().startAt(prefix).endAt(prefix+'\uf8ff').once('value', async snap => {
+    const allData = snap.val() || {};
+    // Monthly stats
+    const monthlyStats = {};
+    Object.values(allData).forEach(dayRecs => {
+      Object.values(dayRecs).forEach(rec => {
+        if (!rec.endTime) return;
+        const credits = getStaffCredits(rec);
+        const cat = getTypeCategory(rec.type);
+        Object.entries(credits).forEach(([sid, cr]) => {
+          if (!monthlyStats[sid]) monthlyStats[sid] = {clean:0,maintain:0,stair:0,garage:0};
+          monthlyStats[sid][cat] = Math.round((monthlyStats[sid][cat]+cr)*100)/100;
+        });
+      });
+    });
+    // Daily stats
+    const dailyStats = aggregateStats(Object.values(state.cleaningRecords));
+    const wb = XLSX.utils.book_new();
+    const headers = ['姓名','職位','整房','保養','樓梯保養','車庫保養','當日合計','本月整房累積','本月保養累積','本月合計'];
+    const staffList = Object.keys({...dailyStats,...monthlyStats});
+    const rows = staffList.map(sid => {
+      const s = state.staff[sid]; if (!s) return null;
+      const d = dailyStats[sid] || {clean:0,maintain:0,stair:0,garage:0};
+      const m = monthlyStats[sid] || {clean:0,maintain:0,stair:0,garage:0};
+      const dTotal = Math.round((d.clean+d.maintain+d.stair+d.garage)*100)/100;
+      const mTotal = Math.round((m.clean+m.maintain+m.stair+m.garage)*100)/100;
+      return [s.name, ROLE_LABELS[s.role]?.zh||'', d.clean, d.maintain, d.stair, d.garage, dTotal, m.clean, m.maintain, mTotal];
+    }).filter(Boolean);
+    const ws = XLSX.utils.aoa_to_sheet([[`員工整房間數　${bDate}`], headers, ...rows]);
+    ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:9}}];
+    applyPrintStyle(ws, '', [10,8,6,6,8,8,8,10,10,8]);
+    XLSX.utils.book_append_sheet(wb, ws, `間數_${bDate}`);
+    XLSX.writeFile(wb, `員工間數_${bDate}.xlsx`);
+    showToast('✅ 員工間數已下載');
+  });
+}
+
+// ③ 期間查房流水表
+function exportPeriodInspection() {
+  const startStr = document.getElementById('rptInspStart').value;
+  const endStr   = document.getElementById('rptInspEnd').value;
+  if (!startStr || !endStr) { showToast('請選擇期間'); return; }
+  const startTs = new Date(startStr+'T08:00:00').getTime();
+  const endTs   = new Date(endStr+'T23:59:59').getTime();
+  const period  = `${startStr}～${endStr}`;
+
+  const allItems = INSPECTION_CATEGORIES.flatMap(c=>c.items);
+  const recs = Object.values(state.inspections)
+    .filter(r => r.time >= startTs && r.time <= endTs)
+    .sort((a,b) => (a.time||0)-(b.time||0));
+
+  if (!recs.length) { showToast('此期間無查房紀錄'); return; }
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: 查房流水
+  const h1 = ['房號','查房日期','查房時間','查房人員','整房人員','整房類型','缺失數','缺失項目','缺失原因'];
+  const rows1 = recs.map(rec => {
+    const defs = allItems.filter(i => rec.items?.[i.id]?.status==='defect');
+    return [
+      rec.room, rec.date||'',
+      rec.time ? new Date(rec.time).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) : '',
+      rec.inspector||'', rec.cleaningStaff||'',
+      rec.cleaningType ? CLEANING_TYPES[rec.cleaningType]?.zh||rec.cleaningType : '',
+      defs.length,
+      defs.map(i=>i.name).join('、'),
+      defs.map(i=>`${i.name}: ${rec.items[i.id].reason||''}`).join('；')
+    ];
+  });
+  const titleRow = [`查房紀錄表　${period}`];
+  const ws1 = XLSX.utils.aoa_to_sheet([titleRow, h1, ...rows1]);
+  ws1['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:8}}];
+  applyPrintStyle(ws1, '', [6,10,8,10,12,10,6,30,35]);
+  XLSX.utils.book_append_sheet(wb, ws1, `查房_${period.replace('～','-')}`);
+
+  // One sheet per room
+  const roomGroups = {};
+  recs.forEach(rec => { if (!roomGroups[rec.room]) roomGroups[rec.room]=[];  roomGroups[rec.room].push(rec); });
+  Object.entries(roomGroups).forEach(([room, roomRecs]) => {
+    const detRows = [];
+    INSPECTION_CATEGORIES.forEach(cat => {
+      cat.items.forEach(item => {
+        roomRecs.forEach(rec => {
+          const s = rec.items?.[item.id];
+          if (!s||!s.status) return;
+          detRows.push([
+            rec.date||'', new Date(rec.time||0).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}),
+            rec.inspector||'', rec.cleaningStaff||'', rec.cleaningType ? CLEANING_TYPES[rec.cleaningType]?.zh||'':'',
+            cat.label, item.name, item.qty||'',
+            s.status==='ok'?'✓ OK': s.status==='defect'?'⚠ 缺失':'N/A',
+            s.reason||''
+          ]);
+        });
+      });
+    });
+    if (!detRows.length) return;
+    const wsDet = XLSX.utils.aoa_to_sheet([
+      [`${room} 查房明細　${period}`],
+      ['日期','時間','查房人','整房人員','整房類型','類別','檢查項目','數量','狀態','缺失原因'],
+      ...detRows
+    ]);
+    wsDet['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:9}}];
+    applyPrintStyle(wsDet, '', [10,8,10,12,8,8,20,6,10,25]);
+    XLSX.utils.book_append_sheet(wb, wsDet, room);
+  });
+
+  XLSX.writeFile(wb, `查房紀錄_${period.replace('～','-')}.xlsx`);
+  showToast('✅ 查房流水表已下載');
+}
+
+// ④ 每周問題紀錄
+function exportWeeklyIssues() {
+  const wp = getWeekPeriod();
+  const startTs = wp.start.getTime();
+  const endTs   = wp.end.getTime();
+  const period  = `${dateStr(wp.start)}～${dateStr(new Date(endTs-86400000))}`;
+  const sevenDaysAgo = Date.now() - 7*86400000;
+
+  const issues = Object.values(state.issues)
+    .filter(iss => (iss.createdAt >= startTs && iss.createdAt < endTs) || iss.status === 'pending')
+    .sort((a,b) => (a.createdAt||0)-(b.createdAt||0));
+
+  const wb = XLSX.utils.book_new();
+  const titleRow = [`問題紀錄表　${period}`];
+  const headers = ['房號','回報時間','回報人員','問題描述','嚴重程度','處理狀態','解決人員','解決時間','備註'];
+  const sevMap = {low:'輕微', mid:'中等', high:'嚴重'};
+
+  const dataRows = issues.map(iss => {
+    const isOld = iss.status==='pending' && (iss.createdAt||0) < sevenDaysAgo;
+    return [
+      (isOld?'★ ':'')+iss.room,
+      `${formatDate(iss.createdAt)} ${formatTime(iss.createdAt)}`,
+      iss.reportedBy||'',
+      iss.desc||'',
+      sevMap[iss.severity]||iss.severity||'',
+      iss.status==='resolved'?'已解決':'待處理',
+      iss.resolvedBy||'',
+      iss.resolvedAt ? `${formatDate(iss.resolvedAt)} ${formatTime(iss.resolvedAt)}` : '',
+      ''  // blank for handwriting
+    ];
+  });
+  // Add blank rows for handwriting
+  for (let i=0; i<5; i++) dataRows.push(['','','','','','','','','']);
+
+  const sigRow = ['','','','','','主管簽名：','___________________','',''];
+  const ws = XLSX.utils.aoa_to_sheet([titleRow, headers, ...dataRows, [], sigRow]);
+  ws['!merges'] = [
+    {s:{r:0,c:0}, e:{r:0,c:8}},
+    {s:{r:dataRows.length+3,c:5}, e:{r:dataRows.length+3,c:8}}
+  ];
+  applyPrintStyle(ws, '', [8,14,10,25,6,8,10,14,12]);
+  XLSX.utils.book_append_sheet(wb, ws, `問題_${period.replace('～','-')}`);
+  XLSX.writeFile(wb, `問題紀錄_${period.replace('～','-')}.xlsx`);
+  showToast('✅ 問題紀錄已下載（★為超過7天未解決）');
+}
+
+// ⑤ 每周周報
+function exportWeeklyReport() {
+  const wp = getWeekPeriod();
+  const startTs = wp.start.getTime();
+  const endTs   = wp.end.getTime();
+  const period  = `${dateStr(wp.start)}～${dateStr(new Date(endTs-86400000))}`;
+  showToast('載入本週資料...');
+
+  db.ref('/cleaning').orderByKey().startAt(dateStr(wp.start)).endAt(dateStr(new Date(endTs-86400000))+'\uf8ff').once('value', snap => {
+    const allData = snap.val() || {};
+    const allRecs = []; Object.values(allData).forEach(d=>Object.values(d).forEach(r=>allRecs.push(r)));
+    const stats = aggregateStats(allRecs.filter(r=>r.endTime));
+    const wb = XLSX.utils.book_new();
+
+    // Sheet: 周報摘要
+    const sumHeaders = ['姓名','職位','整房','保養','樓梯保養','車庫保養','合計'];
+    const sumRows = Object.entries(stats).map(([sid,s]) => {
+      const st = state.staff[sid]; if(!st) return null;
+      return [st.name, ROLE_LABELS[st.role]?.zh||'', s.clean, s.maintain, s.stair, s.garage, Math.round((s.clean+s.maintain+s.stair+s.garage)*100)/100];
+    }).filter(Boolean);
+    const wsSum = XLSX.utils.aoa_to_sheet([[`周報　${period}`], sumHeaders, ...sumRows]);
+    wsSum['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:6}}];
+    applyPrintStyle(wsSum, '', [10,8,6,6,8,8,8]);
+    XLSX.utils.book_append_sheet(wb, wsSum, `周報_${period.replace('～','-')}`);
+
+    XLSX.writeFile(wb, `周報_${period.replace('～','-')}.xlsx`);
+    showToast('✅ 周報已下載');
+  });
+}
+
+// ⑥ 每月月報
+function exportMonthlyReport() {
+  const mp = getMonthPeriod();
+  const prefix = `${mp.start.getFullYear()}-${String(mp.start.getMonth()+1).padStart(2,'0')}`;
+  showToast('載入月資料...');
+
+  db.ref('/cleaning').orderByKey().startAt(prefix).endAt(prefix+'\uf8ff').once('value', snap => {
+    const allData = snap.val() || {};
+    const allRecs = []; Object.values(allData).forEach(d=>Object.values(d).forEach(r=>allRecs.push(r)));
+    const stats = aggregateStats(allRecs.filter(r=>r.endTime));
+    const wb = XLSX.utils.book_new();
+
+    const moHeaders = ['姓名','職位','整房','保養','樓梯保養','車庫保養','合計'];
+    const moRows = Object.entries(stats).map(([sid,s]) => {
+      const st = state.staff[sid]; if(!st) return null;
+      return [st.name, ROLE_LABELS[st.role]?.zh||'', s.clean, s.maintain, s.stair, s.garage, Math.round((s.clean+s.maintain+s.stair+s.garage)*100)/100];
+    }).filter(Boolean);
+    const ws = XLSX.utils.aoa_to_sheet([[`月報　${prefix}`], moHeaders, ...moRows]);
+    ws['!merges'] = [{s:{r:0,c:0}, e:{r:0,c:6}}];
+    applyPrintStyle(ws, '', [10,8,6,6,8,8,8]);
+    XLSX.utils.book_append_sheet(wb, ws, `月報_${prefix}`);
+    XLSX.writeFile(wb, `月報_${prefix}.xlsx`);
+    showToast('✅ 月報已下載');
+  });
+}
+
 // ════════════════════════════════
 //  STARTUP
 // ════════════════════════════════
@@ -2331,6 +2914,7 @@ window.addEventListener('DOMContentLoaded', () => {
   applyTranslations();
   renderInspectRooms();
   init();
+  loadInspPeriod();
 });
 </script>
 </body>
