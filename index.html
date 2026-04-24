@@ -206,6 +206,27 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
 ::-webkit-scrollbar{width:4px;height:4px;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+/* ── INSPECTION ITEMS ── */
+.insp-cat-title{font-size:13px;font-weight:700;color:var(--primary);padding:7px 0 5px;border-bottom:2px solid var(--primary);margin-bottom:6px;}
+.insp-item{padding:8px 0;border-bottom:1px solid var(--border);}
+.insp-item:last-child{border-bottom:none;}
+.insp-item-row{display:flex;align-items:center;gap:6px;}
+.insp-item-name{flex:1;font-size:13px;}
+.insp-item-qty{font-size:11px;color:var(--text3);}
+.insp-btns{display:flex;gap:4px;flex-shrink:0;}
+.insp-btn{padding:5px 8px;border-radius:5px;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-size:11px;cursor:pointer;white-space:nowrap;}
+.insp-btn.insp-ok{background:var(--success);border-color:var(--success);color:#fff;}
+.insp-btn.insp-defect{background:var(--danger);border-color:var(--danger);color:#fff;}
+.insp-btn.insp-na{background:var(--bg4);border-color:var(--border2);color:var(--text3);}
+.insp-reason{width:100%;margin-top:5px;font-size:12px;padding:6px 8px;}
+/* ── OVERVIEW ROOM CARD ── */
+.ov-room{background:var(--bg2);border-radius:var(--radius-sm);padding:8px 6px 8px 10px;cursor:pointer;border-left:4px solid #555;min-height:64px;}
+.ov-room.ov-ok{border-left-color:var(--success);}
+.ov-room.ov-defect{border-left-color:var(--danger);}
+.ov-room .ov-no{font-size:15px;font-weight:700;}
+.ov-room .ov-date{font-size:10px;color:var(--text2);margin-top:2px;}
+.ov-room .ov-status{font-size:10px;margin-top:2px;}
+
 </style>
 </head>
 <body>
@@ -283,26 +304,38 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
     <!-- ── Tab 4: Inspection ── -->
     <div id="tab-inspection" class="tab-page">
       <div class="section-hdr">
-        <div class="section-title" id="lbl-inspectTitle">🔍 查房功能</div>
+        <div class="section-title">🔍 查房功能</div>
+        <button class="btn btn-sm btn-success" onclick="exportInspectionExcel()">📊 匯出Excel</button>
       </div>
+      <!-- 10-day overview -->
+      <div style="padding:0 14px 4px;">
+        <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:6px;">📋 10天查房總覽</div>
+        <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:8px;">
+          <button class="floor-btn active" data-ov="all"  onclick="setOvFloor('all')">全部</button>
+          <button class="floor-btn" data-ov="1F"  onclick="setOvFloor('1F')">1F</button>
+          <button class="floor-btn" data-ov="3F"  onclick="setOvFloor('3F')">3F</button>
+          <button class="floor-btn" data-ov="5F"  onclick="setOvFloor('5F')">5F</button>
+        </div>
+        <div id="inspOverviewGrid" class="room-grid" style="padding:0;margin-bottom:12px;"></div>
+      </div>
+      <!-- Start inspection -->
       <div style="padding:0 14px 14px;">
-        <div class="card" style="margin-bottom:10px;">
+        <div class="card">
           <div class="form-group">
-            <label id="lbl-selectFloor">選擇樓層</label>
+            <label>選擇樓層</label>
             <select id="inspFloor" onchange="renderInspectRooms()">
-              <option value="all" id="lbl-all3">全部</option>
+              <option value="all">全部</option>
               <option value="1F">1F</option>
               <option value="3F">3F</option>
               <option value="5F">5F</option>
             </select>
           </div>
           <div class="form-group">
-            <label id="lbl-selectRoom">選擇房間</label>
+            <label>選擇房間</label>
             <select id="inspRoom"></select>
           </div>
-          <button class="btn btn-primary w-full mt-2" onclick="startInspection()" id="lbl-startInspect">開始查房</button>
+          <button class="btn btn-primary w-full mt-2" onclick="startInspection()">🔍 開始查房</button>
         </div>
-        <div id="inspectHistory"></div>
       </div>
     </div>
 
@@ -415,14 +448,19 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
       <span id="inspModalTitle">查房</span>
       <span class="modal-close" onclick="closeModal('modalInspection')">✕</span>
     </div>
-    <div id="lastCleanInfo" class="card-sm" style="margin-bottom:14px;font-size:13px;color:var(--text2);"></div>
-    <div class="progress-bar-wrap">
-      <div class="progress-bar" id="inspProgress" style="width:0%"></div>
+    <div id="lastCleanInfo" class="card-sm" style="margin-bottom:12px;font-size:13px;color:var(--text2);"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      <div class="progress-bar-wrap" style="flex:1;margin:0;">
+        <div class="progress-bar" id="inspProgress" style="width:0%"></div>
+      </div>
+      <div id="inspProgressLabel" style="font-size:12px;color:var(--text2);white-space:nowrap;min-width:40px;text-align:right;"></div>
     </div>
-    <div id="inspProgressLabel" style="font-size:12px;color:var(--text2);text-align:right;margin-bottom:12px;"></div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">
+      每項請選擇：<span style="color:var(--success);">✓ OK</span> ／ <span style="color:var(--danger);">⚠ 缺失</span>（需填原因）／ <span style="color:var(--text3);">N/A</span>（無此設備）
+    </div>
     <div id="checklistItems"></div>
     <div style="margin-top:16px;">
-      <button class="btn btn-success btn-lg" onclick="completeInspection()" id="lbl-completeInspect">✅ 完成查房</button>
+      <button class="btn btn-success btn-lg" onclick="completeInspection()">✅ 完成查房</button>
     </div>
   </div>
 </div>
@@ -516,29 +554,87 @@ const AREAS = {
   room:     {zh:'房間',     vi:'Phòng'},
   middle:   {zh:'中間',     vi:'Khu giữa'},
   bathroom: {zh:'廁所',     vi:'Phòng tắm'},
-  stair:    {zh:'樓梯保養', vi:'Bảo dưỡng cầu thang'},
-  garage:   {zh:'車庫保養', vi:'Bảo dưỡng nhà xe'}
+  stair:    {zh:'樓梯', vi:'Cầu thang'},
+  garage:   {zh:'車庫', vi:'Nhà xe'}
 };
 
-const INSPECTION_ITEMS = [
-  {id:'shower',  zh:'淋浴間', vi:'Phòng tắm đứng'},
-  {id:'bathtub', zh:'浴缸',   vi:'Bồn tắm'},
-  {id:'toilet',  zh:'馬桶',   vi:'Bồn cầu'},
-  {id:'sink',    zh:'洗手槽', vi:'Bồn rửa tay'},
-  {id:'glass',   zh:'玻璃門', vi:'Cửa kính'},
-  {id:'bed',     zh:'床鋪',   vi:'Giường'},
-  {id:'bedside', zh:'床頭櫃', vi:'Tủ đầu giường'},
-  {id:'dresser', zh:'梳妝台', vi:'Bàn phấn'},
-  {id:'amenity', zh:'備品盤', vi:'Khay đồ dùng'},
-  {id:'fridge',  zh:'冰箱',   vi:'Tủ lạnh'},
-  {id:'tv',      zh:'電視',   vi:'TV'},
-  {id:'table',   zh:'茶几',   vi:'Bàn trà'},
-  {id:'sofa',    zh:'沙發',   vi:'Sofa'},
-  {id:'window',  zh:'窗戶',   vi:'Cửa sổ'},
-  {id:'floor',   zh:'地板',   vi:'Sàn nhà'},
-  {id:'stair',   zh:'樓梯',   vi:'Cầu thang'},
-  {id:'garage',  zh:'車庫',   vi:'Nhà xe'}
+const INSPECTION_CATEGORIES = [
+  { cat:'general', label:'一般', items:[
+    {id:'anti_peep', name:'反針孔檢查'},
+    {id:'ac',        name:'冷氣控制(24度/自動)'},
+  ]},
+  { cat:'dresser', label:'梳妝台區', items:[
+    {id:'dresser_mirror', name:'梳妝台鏡面/桌面'},
+    {id:'maint_sign',     name:'維護牌/紅酒牌/禁菸牌【A5】', qty:'1'},
+    {id:'shelf',          name:'層架(價目/須知/搖說/菜單)',   qty:'4'},
+    {id:'remote',         name:'遙控器',                      qty:'1'},
+    {id:'condom',         name:'保險套/潤滑液',                qty:'2/1'},
+    {id:'namecard',       name:'名片/筆'},
+    {id:'mic_box',        name:'麥克風盒/麥克風',              qty:'1/2'},
+    {id:'mic_cover',      name:'麥克風套1包+電池*4顆',         qty:'1/4'},
+    {id:'snacks',         name:'泡麵/筷子/餅乾',              qty:'各2'},
+    {id:'amenity_tray',   name:'黑色備品盤',                  qty:'1'},
+    {id:'kettle',         name:'熱水壺/防燙三角',              qty:'1/1'},
+    {id:'water',          name:'水/馬克杯/杯墊',              qty:'2/2/2'},
+    {id:'drinks',         name:'沖泡飲品/茶包/調棒',           qty:'2/2/2'},
+    {id:'fridge_drinks',  name:'冰箱飲品',                    qty:'2'},
+    {id:'fridge',         name:'冰箱',                        qty:'1'},
+    {id:'trash_room',     name:'垃圾桶',                      qty:'1'},
+  ]},
+  { cat:'equipment', label:'設備', items:[
+    {id:'vod_wifi',   name:'VOD/WIFI'},
+    {id:'tv',         name:'電視及整線'},
+    {id:'ktv',        name:'KTV設備測試'},
+    {id:'dehumid',    name:'吊隱式除濕機/落地除濕機'},
+    {id:'mosquito',   name:'電蚊香/防蚊液'},
+  ]},
+  { cat:'sofa', label:'沙發茶几', items:[
+    {id:'window',     name:'窗戶擦拭'},
+    {id:'sofa',       name:'沙發/沙發抱枕'},
+    {id:'tea_table',  name:'茶几'},
+    {id:'no_smoke',   name:'禁菸小三角牌',  qty:'1'},
+    {id:'stool',      name:'小圓凳'},
+  ]},
+  { cat:'bed', label:'床區', items:[
+    {id:'bedside',    name:'床頭櫃擦拭'},
+    {id:'tissue_box', name:'衛生紙盒(咖啡色)', qty:'1'},
+    {id:'eco_sign',   name:'環保立牌',          qty:'1'},
+    {id:'phone',      name:'電話測試/電話卡',   qty:'1'},
+    {id:'hanger',     name:'落地衣架',          qty:'1'},
+    {id:'pillow',     name:'大小枕頭/枕頭套',   qty:'2'},
+    {id:'bedding',    name:'床單/棉被/被套/圓柱枕', qty:'1'},
+    {id:'under_bed',  name:'床底下'},
+  ]},
+  { cat:'wall', label:'牆面/地板', items:[
+    {id:'headboard',  name:'床頭背牆/各式鏡面'},
+    {id:'bath_wall',  name:'廁所牆面/廁所玻璃門'},
+    {id:'switches',   name:'各式開關/檢查燈飾'},
+    {id:'room_floor', name:'房間地板'},
+  ]},
+  { cat:'shower', label:'淋浴間', items:[
+    {id:'shampoo',      name:'洗髮精/沐浴乳'},
+    {id:'shower_head',  name:'淋浴柱/蓮蓬頭'},
+    {id:'shower_wall',  name:'淋浴間牆面、地面(矽利康)'},
+    {id:'corner_pad',   name:'牆角防撞貼'},
+    {id:'shower_door',  name:'淋浴間玻璃門'},
+  ]},
+  { cat:'toilet', label:'廁所', items:[
+    {id:'toilet',       name:'馬桶/馬桶封條',        qty:'1'},
+    {id:'trash_toilet', name:'垃圾桶'},
+    {id:'bath_mirror',  name:'浴室鏡子/洗手台檯面'},
+    {id:'sink',         name:'面盆/面盆龍頭'},
+    {id:'hairdryer',    name:'吹風機/吹風機架'},
+    {id:'paper_cup',    name:'紙杯/杯墊/洗手露'},
+    {id:'towel',        name:'大毛/小毛/踏布'},
+    {id:'toilet_paper', name:'衛生紙(黑色)/捲紙'},
+    {id:'slippers',     name:'浴室拖鞋',             qty:'2'},
+    {id:'bathtub',      name:'浴缸/浴缸出水/冷熱貼'},
+    {id:'bath_tablet',  name:'泡湯塊',               qty:'1'},
+    {id:'toilet_floor', name:'廁所乾區地板/天花板/側牆'},
+  ]},
 ];
+// Keep legacy for any old references
+const INSPECTION_ITEMS = INSPECTION_CATEGORIES.flatMap(c => c.items.map(i => ({...i, zh:i.name, vi:i.name})));
 
 const DEFAULT_STAFF = [
   {name:'小美', role:'cleaner'},
@@ -1181,15 +1277,7 @@ function openStartCleaning(roomId) {
     </div>
   `).join('');
 
-  // Pre-select current staff across all areas
-  if (state.currentStaff.length > 0) {
-    Object.keys(AREAS).forEach(akey => {
-      state.currentStaff.forEach((sid, i) => {
-        const sel = document.getElementById(`assign_${akey}_${i}`);
-        if (sel) sel.value = sid;
-      });
-    });
-  }
+  // No pre-selection: staff choose their own areas
 
   showModal('modalStartCleaning');
 }
@@ -1528,140 +1616,268 @@ function resolveIssue(issId) {
 //  INSPECTION TAB
 // ════════════════════════════════
 function renderInspectRooms() {
-  const floor = document.getElementById('inspFloor').value;
+  const floor = document.getElementById('inspFloor') ? document.getElementById('inspFloor').value : 'all';
   const sel = document.getElementById('inspRoom');
+  if (!sel) return;
   let rooms = floor === 'all' ? ALL_ROOMS : (ROOMS[floor] || []);
   sel.innerHTML = rooms.map(r => `<option value="${r}">${r}</option>`).join('');
 }
 
+// ── Overview ──
+function setOvFloor(floor) {
+  state.ovFloor = floor;
+  document.querySelectorAll('[data-ov]').forEach(b => b.classList.toggle('active', b.dataset.ov === floor));
+  renderInspectOverview();
+}
+
+function renderInspectOverview() {
+  const grid = document.getElementById('inspOverviewGrid');
+  if (!grid) return;
+  const now = Date.now();
+  const cutoff = now - (10 * 24 * 60 * 60 * 1000);
+  // Latest inspection per room within 10 days
+  const roomLatest = {};
+  Object.values(state.inspections).forEach(insp => {
+    if (!insp.time || insp.time < cutoff) return;
+    const r = insp.room;
+    if (!roomLatest[r] || insp.time > roomLatest[r].time) roomLatest[r] = insp;
+  });
+  const rooms = (state.ovFloor && state.ovFloor !== 'all') ? (ROOMS[state.ovFloor]||[]) : ALL_ROOMS;
+  grid.innerHTML = rooms.map(roomId => {
+    const insp = roomLatest[roomId];
+    const defCnt = insp ? Object.values(insp.items||{}).filter(v=>v&&v.status==='defect').length : 0;
+    const cls = insp ? (defCnt > 0 ? 'ov-defect' : 'ov-ok') : '';
+    return `<div class="ov-room ${cls}" onclick="inspectRoom('${roomId}')">
+      <div class="ov-no">${roomId}</div>
+      ${insp
+        ? `<div class="ov-date">${formatDate(insp.time)}</div>
+           <div class="ov-status" style="color:${defCnt>0?'var(--danger)':'var(--success)'}">
+             ${defCnt>0 ? '⚠️ '+defCnt+'缺失' : '✓ 正常'}
+           </div>`
+        : `<div class="ov-status" style="color:var(--text3);">未查</div>`}
+    </div>`;
+  }).join('');
+}
+
+function inspectRoom(roomId) {
+  const sel = document.getElementById('inspRoom');
+  if (sel) sel.value = roomId;
+  startInspection();
+}
+
+// ── Start Inspection ──
 function startInspection() {
   const roomId = document.getElementById('inspRoom').value;
   if (!roomId) return;
-
   state.currentInspRoom = roomId;
   state.currentInspItems = {};
 
-  // Show last clean info
+  // Last clean info
   const records = Object.values(state.cleaningRecords);
   const lastRec = records.filter(r => r.room === roomId).sort((a,b)=>(b.startTime||0)-(a.startTime||0))[0];
-
-  document.getElementById('inspModalTitle').textContent = `🔍 ${t('inspectTitle')} - ${roomId}`;
+  document.getElementById('inspModalTitle').textContent = `🔍 查房 — ${roomId}`;
 
   const lastInfo = document.getElementById('lastCleanInfo');
   if (lastRec) {
-    const areaAssignHtml = Object.entries(AREAS).map(([akey, alabel]) => {
-      const people = (lastRec.assignees && lastRec.assignees[akey]) || [];
-      const names = people.map(sid => state.staff[sid] ? state.staff[sid].name : '').filter(Boolean);
-      return names.length ? `${alabel[state.lang]}: ${names.join('、')}` : '';
-    }).filter(Boolean).join(' ｜ ');
-
+    const cleanStaff = getCleanStaffNames(lastRec);
+    const statusText = lastRec.endTime ? '✅ 已完成' : '⏳ 整理中';
     lastInfo.innerHTML = `
-      <div>${t('lastClean')}</div>
-      <div>${formatDate(lastRec.startTime)} ${formatTime(lastRec.startTime)} - ${formatTime(lastRec.endTime)}</div>
-      <div>${ct(lastRec.type)} ｜ ${areaAssignHtml}</div>
-    `;
+      <div style="font-weight:600;margin-bottom:2px;">${statusText}</div>
+      <div>整房人員：${cleanStaff}</div>
+      <div>開始：${formatTime(lastRec.startTime)}${lastRec.endTime?' ｜ 結束：'+formatTime(lastRec.endTime):''}</div>
+      <div style="margin-top:2px;"><span class="badge ${CLEANING_TYPES[lastRec.type]?.cls||''}">${ct(lastRec.type)}</span></div>`;
+    state._lastRec = lastRec;
   } else {
-    lastInfo.textContent = t('noRecords');
+    lastInfo.textContent = '今日尚無整房紀錄';
+    state._lastRec = null;
   }
-
-  // Build checklist
   renderChecklist();
   showModal('modalInspection');
 }
 
+function getCleanStaffNames(rec) {
+  if (!rec || !rec.assignees) return '無';
+  const people = new Set();
+  Object.values(rec.assignees).forEach(arr => {
+    if (Array.isArray(arr)) arr.forEach(sid => { if(sid) people.add(sid); });
+  });
+  return [...people].map(sid => state.staff[sid]?.name||'').filter(Boolean).join('、') || '無';
+}
+
+// ── Checklist rendering ──
 function renderChecklist() {
   const container = document.getElementById('checklistItems');
-  container.innerHTML = INSPECTION_ITEMS.map(item => `
-    <div class="checklist-item" id="chk_${item.id}">
-      <div class="custom-check ${state.currentInspItems[item.id] ? 'checked' : ''}"
-           onclick="toggleCheck('${item.id}')">
-        ${state.currentInspItems[item.id] ? '✓' : ''}
-      </div>
-      <div class="check-label">${item[state.lang]}</div>
+  container.innerHTML = INSPECTION_CATEGORIES.map(cat => `
+    <div style="margin-bottom:18px;">
+      <div class="insp-cat-title">${cat.label}</div>
+      ${cat.items.map(item => renderInspItem(item)).join('')}
     </div>
   `).join('');
   updateCheckProgress();
 }
 
-function toggleCheck(itemId) {
-  state.currentInspItems[itemId] = !state.currentInspItems[itemId];
-  const el = document.querySelector(`#chk_${itemId} .custom-check`);
-  if (el) {
-    el.classList.toggle('checked', state.currentInspItems[itemId]);
-    el.textContent = state.currentInspItems[itemId] ? '✓' : '';
+function renderInspItem(item) {
+  const cur = state.currentInspItems[item.id] || {};
+  const st = cur.status;
+  return `<div class="insp-item" id="insp_${item.id}">
+    <div class="insp-item-row">
+      <div class="insp-item-name">
+        ${item.name}${item.qty?`<span class="insp-item-qty"> (${item.qty})</span>`:''}
+      </div>
+      <div class="insp-btns">
+        <button class="insp-btn ${st==='ok'?'insp-ok':''}"     onclick="setItemStatus('${item.id}','ok')">✓ OK</button>
+        <button class="insp-btn ${st==='defect'?'insp-defect':''}" onclick="setItemStatus('${item.id}','defect')">⚠ 缺失</button>
+        <button class="insp-btn ${st==='na'?'insp-na':''}"     onclick="setItemStatus('${item.id}','na')">N/A</button>
+      </div>
+    </div>
+    ${st==='defect' ? `<input class="insp-reason" type="text" placeholder="請填寫缺失原因…"
+      value="${(cur.reason||'').replace(/"/g,'&quot;')}"
+      oninput="setItemReason('${item.id}',this.value)">` : ''}
+  </div>`;
+}
+
+function setItemStatus(itemId, newStatus) {
+  if (!state.currentInspItems[itemId]) state.currentInspItems[itemId] = {};
+  const prev = state.currentInspItems[itemId].status;
+  // Toggle: click same button again to unset
+  state.currentInspItems[itemId].status = (prev === newStatus) ? null : newStatus;
+  if (newStatus !== 'defect') state.currentInspItems[itemId].reason = '';
+  // Re-render this item only
+  const itemDef = findItemById(itemId);
+  if (itemDef) {
+    const el = document.getElementById(`insp_${itemId}`);
+    if (el) el.outerHTML = renderInspItem(itemDef);
   }
   updateCheckProgress();
 }
 
-function updateCheckProgress() {
-  const total = INSPECTION_ITEMS.length;
-  const done = Object.values(state.currentInspItems).filter(Boolean).length;
-  const pct = Math.round((done / total) * 100);
-  const bar = document.getElementById('inspProgress');
-  const label = document.getElementById('inspProgressLabel');
-  if (bar) bar.style.width = pct + '%';
-  if (label) label.textContent = `${done} / ${total}`;
+function findItemById(id) {
+  for (const cat of INSPECTION_CATEGORIES)
+    for (const item of cat.items)
+      if (item.id === id) return item;
+  return null;
 }
 
+function setItemReason(itemId, reason) {
+  if (!state.currentInspItems[itemId]) state.currentInspItems[itemId] = {};
+  state.currentInspItems[itemId].reason = reason;
+}
+
+function updateCheckProgress() {
+  const allItems = INSPECTION_CATEGORIES.flatMap(c => c.items);
+  const total = allItems.length;
+  const done  = allItems.filter(i => state.currentInspItems[i.id]?.status).length;
+  const pct   = Math.round((done/total)*100);
+  const bar   = document.getElementById('inspProgress');
+  const lbl   = document.getElementById('inspProgressLabel');
+  if (bar) bar.style.width = pct + '%';
+  if (lbl) lbl.textContent = `${done}/${total}`;
+}
+
+// ── Complete Inspection ──
 function completeInspection() {
   const roomId = state.currentInspRoom;
   if (!roomId) return;
+  const allItems = INSPECTION_CATEGORIES.flatMap(c => c.items);
+  const setCount  = allItems.filter(i => state.currentInspItems[i.id]?.status).length;
+  const defects   = allItems.filter(i => state.currentInspItems[i.id]?.status === 'defect');
 
-  const total = INSPECTION_ITEMS.length;
-  const completed = Object.entries(state.currentInspItems).filter(([,v])=>v).map(([k])=>k);
   const inspectorNames = state.isAdmin ? '管理員' :
-    state.currentStaff.map(sid => state.staff[sid] ? state.staff[sid].name : '').filter(Boolean).join('、');
+    state.currentStaff.map(sid => state.staff[sid]?.name||'').filter(Boolean).join('、');
 
-  const bDate = getBusinessDate();
-  db.ref('/inspections/' + uid()).set({
+  const lastRec = state._lastRec || null;
+  const cleanStaff  = lastRec ? getCleanStaffNames(lastRec) : '無';
+  const cleanStatus = lastRec ? (lastRec.endTime ? '已完成' : '整理中') : '今日未整';
+
+  const record = {
     room: roomId,
     inspector: inspectorNames,
+    date: getBusinessDate(),
+    time: Date.now(),
+    cleaningStaff: cleanStaff,
+    cleaningStatus: cleanStatus,
+    cleaningStartTime: lastRec?.startTime || null,
+    cleaningEndTime:   lastRec?.endTime   || null,
+    cleaningType: lastRec?.type || null,
     items: state.currentInspItems,
-    completedItems: completed,
-    completedCount: completed.length,
-    totalCount: total,
-    date: bDate,
-    time: Date.now()
-  }).then(() => {
-    closeModal('modalInspection');
-    showToast(`✅ 查房完成 ${completed.length}/${total}`);
-    renderInspectHistory();
-  }).catch(e => showToast('❌ 錯誤: ' + e.message));
+    totalItems: allItems.length,
+    setCount: setCount,
+    defectCount: defects.length
+  };
+
+  db.ref('/inspections/' + uid()).set(record)
+    .then(() => {
+      closeModal('modalInspection');
+      showToast(`✅ 查房完成 共 ${defects.length} 項缺失`);
+      renderInspectOverview();
+    })
+    .catch(e => showToast('❌ 錯誤: ' + e.message));
 }
 
 function renderInspectHistory() {
-  const container = document.getElementById('inspectHistory');
-  if (!container) return;
+  renderInspectOverview();
+}
 
-  const now = Date.now();
-  const cutoff = now - (15 * 24 * 60 * 60 * 1000); // 15 days
+// ── Export Inspection Excel ──
+function exportInspectionExcel() {
+  const now  = Date.now();
+  const cutoff = now - (30 * 24 * 60 * 60 * 1000);
+  const allItems = INSPECTION_CATEGORIES.flatMap(c => c.items);
 
-  const records = Object.entries(state.inspections)
-    .filter(([,v]) => v.time && v.time >= cutoff)
-    .sort((a,b) => (b[1].time||0)-(a[1].time||0));
+  const records = Object.values(state.inspections)
+    .filter(r => r.time && r.time >= cutoff)
+    .sort((a,b) => (a.time||0)-(b.time||0));
 
-  if (records.length === 0) {
-    container.innerHTML = `<div class="empty-state" style="padding:20px 0;"><div class="empty-icon">🔍</div>${t('noRecords')}</div>`;
-    return;
-  }
+  if (!records.length) { showToast('30天內無查房紀錄'); return; }
 
-  container.innerHTML = `
-    <div style="font-size:14px;font-weight:600;color:var(--text2);margin-bottom:8px;">${t('inspHistory')} (${t('navInspection')} 15天)</div>
-    ${records.map(([id, rec]) => `
-      <div class="inspect-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-size:16px;font-weight:700;">🏠 ${rec.room}</div>
-          <div style="font-size:13px;color:var(--success);">${rec.completedCount}/${rec.totalCount}</div>
-        </div>
-        <div style="font-size:12px;color:var(--text2);margin-top:4px;">
-          ${formatDate(rec.time)} ${formatTime(rec.time)} ｜ ${rec.inspector || ''}
-        </div>
-        <div class="progress-bar-wrap" style="margin-top:6px;">
-          <div class="progress-bar" style="width:${Math.round((rec.completedCount/rec.totalCount)*100)}%"></div>
-        </div>
-      </div>
-    `).join('')}
-  `;
+  const wb = XLSX.utils.book_new();
+
+  // ── Sheet 1: 查房紀錄總表 ──
+  const h1 = ['房號','查房日期','查房時間','查房人員','整房人員','整房狀態','整房類型','整房開始','整房結束','缺失數','缺失項目','缺失原因'];
+  const rows1 = records.map(rec => {
+    const defs = allItems.filter(i => rec.items?.[i.id]?.status==='defect');
+    return [
+      rec.room, rec.date||'',
+      rec.time ? new Date(rec.time).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}) : '',
+      rec.inspector||'',
+      rec.cleaningStaff||'',
+      rec.cleaningStatus||'',
+      rec.cleaningType ? (CLEANING_TYPES[rec.cleaningType]?.zh||rec.cleaningType) : '',
+      rec.cleaningStartTime ? formatTime(rec.cleaningStartTime) : '',
+      rec.cleaningEndTime   ? formatTime(rec.cleaningEndTime)   : '',
+      defs.length,
+      defs.map(i=>i.name).join('、'),
+      defs.map(i=>`${i.name}: ${rec.items[i.id].reason||''}`.trim()).join('；')
+    ];
+  });
+  const ws1 = XLSX.utils.aoa_to_sheet([h1, ...rows1]);
+  ws1['!cols'] = [6,10,8,10,12,8,10,8,8,6,35,40].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws1, '查房紀錄');
+
+  // ── Sheet 2: 逐項明細 ──
+  const h2 = ['房號','查房日期','查房人員','整房人員','整房狀態','類別','檢查項目','數量','狀態','缺失原因'];
+  const rows2 = [];
+  records.forEach(rec => {
+    INSPECTION_CATEGORIES.forEach(cat => {
+      cat.items.forEach(item => {
+        const s = rec.items?.[item.id];
+        if (!s || !s.status) return;
+        rows2.push([
+          rec.room, rec.date||'', rec.inspector||'', rec.cleaningStaff||'', rec.cleaningStatus||'',
+          cat.label, item.name, item.qty||'',
+          s.status==='ok'?'✓ OK': s.status==='defect'?'⚠ 缺失':'N/A 無設備',
+          s.reason||''
+        ]);
+      });
+    });
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet([h2, ...rows2]);
+  ws2['!cols'] = [6,10,10,12,8,8,22,6,10,30].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, ws2, '查房明細');
+
+  const today = new Date().toISOString().split('T')[0];
+  XLSX.writeFile(wb, `查房紀錄_${today}.xlsx`);
+  showToast('✅ 查房報表已下載');
 }
 
 // ════════════════════════════════
