@@ -283,8 +283,15 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
     <!-- ── Tab 2: Records ── -->
     <div id="tab-records" class="tab-page">
       <div class="section-hdr">
-        <div class="section-title">📋 近7天紀錄</div>
-        <button class="btn btn-sm btn-outline" style="font-size:12px;" onclick="loadRecentRecords()">🔄 重新整理</button>
+        <div class="section-title" id="recPageTitle">📋 紀錄</div>
+        <button class="btn btn-sm btn-outline" style="font-size:12px;" onclick="loadRecordsByDate()">🔄 重新整理</button>
+      </div>
+      <!-- 業務日選擇 -->
+      <div style="display:flex;align-items:center;gap:8px;padding:0 14px 8px;flex-shrink:0;">
+        <input type="date" id="recDatePicker" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:14px;" onchange="loadRecordsByDate()">
+        <button class="btn btn-sm btn-outline" onclick="setRecDate('prev')">‹</button>
+        <button class="btn btn-sm btn-outline" onclick="setRecDate('next')">›</button>
+        <button class="btn btn-sm btn-outline" onclick="setRecDate('today')" style="font-size:11px;">今日</button>
       </div>
       <div style="display:flex;gap:6px;padding:0 14px 8px;flex-shrink:0;">
         <button class="floor-btn active" data-rec="all"   onclick="setRecFilter('all')">全部</button>
@@ -588,6 +595,17 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
       <input type="password" id="confirmPwdInput" placeholder="再輸入一次">
     </div>
     <button class="btn btn-primary btn-lg" onclick="changeAdminPassword()">💾 儲存新密碼</button>
+  </div>
+</div>
+
+<!-- ── Modal: 修改整房紀錄（管理員專用）── -->
+<div id="modalEditRecord" class="modal-overlay hidden" onclick="closeModalOverlay(event,'modalEditRecord')">
+  <div class="modal-box" style="max-height:85vh;overflow-y:auto;">
+    <div class="modal-title">
+      <span>✏️ 修改整房紀錄</span>
+      <span class="modal-close" onclick="closeModal('modalEditRecord')">✕</span>
+    </div>
+    <div id="editRecordContent"></div>
   </div>
 </div>
 
@@ -902,29 +920,52 @@ function refreshOverview() {
 }
 
 // 載入近 N 天的整房紀錄（不影響總覽）
-function loadRecentRecords(days) {
-  days = days || 7;
-  const dates = [];
-  for (let i = 0; i < days; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    dates.push(localDateStr(d));
+// 設定日期選擇器初始值（今天業務日）並載入
+function initRecDatePicker() {
+  const picker = document.getElementById('recDatePicker');
+  if (!picker) return;
+  if (!picker.value) picker.value = getBusinessDate();
+  loadRecordsByDate();
+}
+
+// 切換日期（prev/next/today）
+function setRecDate(dir) {
+  const picker = document.getElementById('recDatePicker');
+  if (!picker) return;
+  const cur = picker.value ? new Date(picker.value + 'T12:00:00') : new Date();
+  if (dir === 'today') {
+    picker.value = getBusinessDate();
+  } else if (dir === 'prev') {
+    cur.setDate(cur.getDate() - 1);
+    picker.value = localDateStr(cur);
+  } else if (dir === 'next') {
+    cur.setDate(cur.getDate() + 1);
+    picker.value = localDateStr(cur);
   }
+  loadRecordsByDate();
+}
+
+// 載入指定業務日的紀錄（單日）
+function loadRecordsByDate() {
+  const picker = document.getElementById('recDatePicker');
+  const selDate = picker?.value || getBusinessDate();
+  if (picker && !picker.value) picker.value = selDate;
+  const titleEl = document.getElementById('recPageTitle');
+  if (titleEl) titleEl.textContent = `📋 ${selDate} 紀錄`;
   const container = document.getElementById('recordsList');
   if (container) container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);">載入中...</div>';
-  let loaded = 0;
-  const fresh = {};
-  dates.forEach(date => {
-    db.ref('/cleaning/' + date).once('value', snap => {
-      const data = snap.val() || {};
-      Object.entries(data).forEach(([id, r]) => { fresh[id] = {...r, _date: date}; });
-      loaded++;
-      if (loaded === dates.length) {
-        state.recentCleanRecords = fresh;
-        renderRecords();
-      }
-    });
+  db.ref('/cleaning/' + selDate).once('value', snap => {
+    const fresh = {};
+    const data = snap.val() || {};
+    Object.entries(data).forEach(([id, r]) => { fresh[id] = {...r, _date: selDate}; });
+    state.recentCleanRecords = fresh;
+    renderRecords();
   });
+}
+
+// 保留相容性（刪除後、切 tab 時呼叫）
+function loadRecentRecords(days) {
+  loadRecordsByDate();
 }
 
 // ════════════════════════════════
@@ -1265,7 +1306,7 @@ function switchTab(tab) {
   const navItem = document.querySelector(`.nav-item[data-tab="${tab}"]`);
   if (navItem) navItem.classList.add('active');
 
-  if (tab === 'records') loadRecentRecords();
+  if (tab === 'records') initRecDatePicker();
   if (tab === 'issues') renderIssues();
   if (tab === 'inspection') { renderInspectRooms(); renderInspectHistory(); }
   if (tab === 'management') renderManagement();
@@ -2068,6 +2109,78 @@ function submitAddStaff() {
     .catch(e => showToast('❌ 錯誤: ' + e.message));
 }
 
+// ── 管理員修改整房紀錄 ──
+function openEditRecord(recId) {
+  if (!state.isAdmin) { showToast('❌ 僅管理員可修改'); return; }
+  const rec = state.recentCleanRecords[recId] || state.cleaningRecords[recId];
+  if (!rec) { showToast('❌ 找不到紀錄'); return; }
+
+  const staffEntries = Object.entries(state.staff);
+  const recDate = rec._date || getBusinessDate();
+
+  // 各區人員選單 HTML
+  const areaSelects = Object.entries(AREAS).map(([akey, alabel]) => {
+    const curPeople = (rec.assignees && rec.assignees[akey]) || [];
+    const selects = [0,1,2].map(i => `
+      <select id="er_${akey}_${i}" style="width:100%;margin-bottom:4px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--text);font-size:13px;">
+        <option value="">—</option>
+        ${staffEntries.map(([sid,s]) => `<option value="${sid}" ${curPeople[i]===sid?'selected':''}>${s.name}</option>`).join('')}
+      </select>`).join('');
+    return `<div style="margin-bottom:10px;">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;">${alabel[state.lang]}</div>
+      ${selects}
+    </div>`;
+  }).join('');
+
+  document.getElementById('editRecordContent').innerHTML = `
+    <div style="font-size:13px;color:var(--text2);margin-bottom:12px;">
+      🏠 ${rec.room} ｜ ${recDate} ｜ ${formatTime(rec.startTime)}
+    </div>
+
+    <div class="form-group">
+      <label>整理類型</label>
+      <select id="er_type" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:14px;">
+        ${Object.entries(CLEANING_TYPES).map(([k,v]) =>
+          `<option value="${k}" ${rec.type===k?'selected':''}>${v.zh}</option>`
+        ).join('')}
+      </select>
+    </div>
+
+    <div style="font-weight:600;font-size:13px;margin:12px 0 8px;">👥 整房人員</div>
+    ${areaSelects}
+
+    <button class="btn btn-primary btn-lg" onclick="saveEditRecord('${recId}','${recDate}')">💾 儲存修改</button>
+  `;
+  showModal('modalEditRecord');
+}
+
+function saveEditRecord(recId, recDate) {
+  if (!state.isAdmin) { showToast('❌ 僅管理員可修改'); return; }
+  const typeEl = document.getElementById('er_type');
+  const newType = typeEl ? typeEl.value : null;
+
+  const assignees = {};
+  Object.keys(AREAS).forEach(akey => {
+    const people = [];
+    [0,1,2].forEach(i => {
+      const sel = document.getElementById(`er_${akey}_${i}`);
+      if (sel && sel.value) people.push(sel.value);
+    });
+    assignees[akey] = [...new Set(people)];
+  });
+
+  const updates = { assignees };
+  if (newType) updates.type = newType;
+
+  db.ref(`/cleaning/${recDate}/${recId}`).update(updates)
+    .then(() => {
+      showToast('✅ 紀錄已修改');
+      closeModal('modalEditRecord');
+      loadRecordsByDate();
+    })
+    .catch(e => showToast('❌ 錯誤: ' + e.message));
+}
+
 function deleteStaff(sid) {
   if (!state.isAdmin) { showToast('❌ 僅管理員可刪除人員'); return; }
   if (!confirm(t('deleteConfirm'))) return;
@@ -2440,7 +2553,8 @@ function renderCleanRecord(rec) {
       <span class="badge ${typeInfo.cls||''}">${ct(rec.type)}</span>
     </div>
     <div class="record-areas">${areaHtml}</div>
-    ${state.isAdmin ? `<div style="margin-top:8px;text-align:right;">
+    ${state.isAdmin ? `<div style="margin-top:8px;display:flex;justify-content:flex-end;gap:8px;">
+      <button class="btn btn-sm btn-outline" onclick="openEditRecord('${recId}')">✏️ 修改</button>
       <button class="btn btn-sm btn-danger" style="opacity:.7;" onclick="adminDeleteRecord('${recId}')">🗑 刪除</button>
     </div>` : ''}
   </div>`;
