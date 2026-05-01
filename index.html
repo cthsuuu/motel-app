@@ -287,11 +287,14 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
         <button class="btn btn-sm btn-outline" style="font-size:12px;" onclick="loadRecordsByDate()">🔄 重新整理</button>
       </div>
       <!-- 業務日選擇 -->
-      <div style="display:flex;align-items:center;gap:8px;padding:0 14px 8px;flex-shrink:0;">
-        <input type="date" id="recDatePicker" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);font-size:14px;" onchange="loadRecordsByDate()">
-        <button class="btn btn-sm btn-outline" onclick="setRecDate('prev')">‹</button>
-        <button class="btn btn-sm btn-outline" onclick="setRecDate('next')">›</button>
-        <button class="btn btn-sm btn-outline" onclick="setRecDate('today')" style="font-size:11px;">今日</button>
+      <div style="padding:0 14px 10px;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:8px 10px;">
+          <span style="font-size:13px;color:var(--text2);white-space:nowrap;">📅 業務日</span>
+          <input type="date" id="recDatePicker" style="flex:1;border:none;background:transparent;color:var(--text);font-size:14px;font-weight:600;outline:none;" onchange="loadRecordsByDate()">
+          <button class="btn btn-sm btn-outline" style="padding:4px 10px;" onclick="setRecDate('prev')">‹</button>
+          <button class="btn btn-sm btn-outline" style="padding:4px 10px;" onclick="setRecDate('next')">›</button>
+          <button class="btn btn-sm btn-outline" style="padding:4px 8px;font-size:11px;" onclick="setRecDate('today')">今日</button>
+        </div>
       </div>
       <div style="display:flex;gap:6px;padding:0 14px 8px;flex-shrink:0;">
         <button class="floor-btn active" data-rec="all"   onclick="setRecFilter('all')">全部</button>
@@ -2483,11 +2486,11 @@ function renderRecords() {
   // 近7天：整房紀錄
   const cleanEntries = Object.entries(state.recentCleanRecords).map(([id, r]) => ({...r, _id:id, _type:'clean'}));
 
-  // 近7天：查房紀錄（從 state.inspections 過濾）
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-7); cutoff.setHours(0,0,0,0);
+  // 查房紀錄：依日期選擇器的業務日過濾
+  const selDate = document.getElementById('recDatePicker')?.value || getBusinessDate();
   const inspEntries = Object.values(state.inspections).filter(r => {
     const ts = r.time || r.startTime;
-    return ts && new Date(ts) >= cutoff;
+    return ts && getBusinessDate(ts) === selDate;
   }).map(r => ({...r, _type:'insp'}));
 
   let combined = [...cleanEntries, ...inspEntries];
@@ -2500,7 +2503,7 @@ function renderRecords() {
   });
 
   if (!combined.length) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div>近7天尚無紀錄</div></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><div>${selDate} 尚無紀錄</div></div>`;
     return;
   }
 
