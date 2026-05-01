@@ -2079,11 +2079,14 @@ function deleteStaff(sid) {
 function adminDeleteRecord(recId) {
   if (!state.isAdmin) { showToast('❌ 僅管理員可刪除'); return; }
   if (!confirm('確定要刪除此整房紀錄？')) return;
-  const rec = state.cleaningRecords[recId];
+  // 優先從近7天紀錄（recentCleanRecords）查，才有正確的 _date；再 fallback 到今日總覽
+  const rec = state.recentCleanRecords[recId] || state.cleaningRecords[recId];
   const recDate = rec?._date || getBusinessDate();
   db.ref(`/cleaning/${recDate}/${recId}`).remove().then(() => {
     if (rec) db.ref(`/roomStatus/${rec.room}`).remove();
     showToast('✅ 紀錄已刪除');
+    // 刪除後重新載入紀錄列表，讓畫面即時更新
+    loadRecentRecords(7);
   }).catch(e => showToast('❌ 錯誤: ' + e.message));
 }
 
@@ -2273,8 +2276,13 @@ function buildWorkbook(bDate, records, monthlyStats) {
 
 function exportExcel(withMonthly) {
   const bDate = getBusinessDate();
-  const records = Object.values(state.cleaningRecords)
-    .sort((a,b)=>(a.startTime||0)-(b.startTime||0));
+  showToast('載入資料中...');
+  // 從 Firebase 重新讀取，確保取得刪除後的最新資料
+  db.ref('/cleaning/' + bDate).once('value', snap => {
+    const records = Object.values(snap.val() || {})
+      .sort((a,b)=>(a.startTime||0)-(b.startTime||0));
+    // 同步更新記憶體快取
+    state.cleaningRecords = snap.val() || {};
 
   if (!withMonthly) {
     const wb = buildWorkbook(bDate, records, null);
@@ -2302,6 +2310,7 @@ function exportExcel(withMonthly) {
       window.open(`mailto:${REPORT_EMAIL}?subject=${subj}&body=${body}`, '_blank');
     }, 1500);
   });
+  }); // 外層 Firebase once 結束
 }
 
 function showMonthlyStats() {
