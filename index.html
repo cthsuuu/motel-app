@@ -483,11 +483,15 @@ label{display:block;font-size:13px;color:var(--text2);margin-bottom:4px;}
 <div id="modalChores" class="modal-overlay hidden" onclick="closeModalOverlay(event,'modalChores')">
   <div class="modal-box">
     <div class="modal-title">
-      <span>📋 雜事登記 <span style="font-size:12px;font-weight:400;opacity:.7;">Công việc quản lý giao</span></span>
+      <span>📋 主管交辦 <span style="font-size:12px;font-weight:400;opacity:.7;">Công việc quản lý giao</span></span>
       <span class="modal-close" onclick="closeModal('modalChores')">✕</span>
     </div>
     <div class="form-group">
-      <textarea id="choreInput" rows="2" placeholder="寫下要做的雜事（例：補大廳備品）"></textarea>
+      <textarea id="choreInput" rows="2" placeholder="寫下主管交辦事項（例：補大廳備品）"></textarea>
+    </div>
+    <div class="form-group">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:6px;">勾選人員（每人各記一次）</div>
+      <div id="choreStaffPick" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
     </div>
     <button class="btn btn-primary w-full" onclick="addChore()">＋ 登記</button>
     <div class="divider"></div>
@@ -1121,7 +1125,7 @@ function setupListeners() {
   // Today's cleaning records
   subscribeRecords(getBusinessDate());
 
-  // Today's chores (雜事登記)
+  // Today's chores (主管交辦)
   subscribeChores(getBusinessDate());
 
   // Issues
@@ -1477,7 +1481,7 @@ function renderRoomGrid() {
 }
 
 // ════════════════════════════════
-//  其他：公共清潔 + 雜事登記
+//  其他：公共清潔 + 主管交辦
 // ════════════════════════════════
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -1506,7 +1510,7 @@ function renderOtherCards(grid) {
       </div>
     </div>
     <div class="room-card" style="grid-column:1/-1;text-align:left;padding:14px;" onclick="openChores()">
-      <div style="font-size:16px;font-weight:700;">📋 雜事登記 <span style="font-size:12px;font-weight:400;color:var(--text2);">Công việc quản lý giao</span></div>
+      <div style="font-size:16px;font-weight:700;">📋 主管交辦 <span style="font-size:12px;font-weight:400;color:var(--text2);">Công việc quản lý giao</span></div>
       <div style="font-size:12px;color:var(--text2);margin-top:4px;">
         今日 ${chores.length} 筆${chores.length?`（已完成 ${doneCnt}）`:''}
       </div>
@@ -1608,14 +1612,28 @@ function subscribeChores(forceDate){
 }
 function openChores() {
   renderChoresList();
+  renderChoreStaffPick();
   const inp=document.getElementById('choreInput'); if(inp) inp.value='';
   showModal('modalChores');
+}
+function renderChoreStaffPick() {
+  const box = document.getElementById('choreStaffPick');
+  if (!box) return;
+  const staffList = state.isAdmin
+    ? Object.entries(state.staff)
+    : (state.currentStaff || []).map(sid => [sid, state.staff[sid]]).filter(([,s]) => s);
+  box.innerHTML = staffList.length
+    ? staffList.map(([sid,s]) => `
+        <label style="display:inline-flex;align-items:center;gap:5px;background:var(--bg3);border:1px solid var(--border2);border-radius:20px;padding:6px 12px;font-size:13px;cursor:pointer;">
+          <input type="checkbox" class="choreChk" value="${sid}" style="width:auto;margin:0;"> ${escapeHtml(s.name)}
+        </label>`).join('')
+    : `<div style="font-size:13px;color:var(--text3);">尚無登入人員</div>`;
 }
 function renderChoresList() {
   const list = document.getElementById('choresList');
   if (!list) return;
   const chores = Object.entries(state.chores||{}).sort((a,b)=>(a[1].ts||0)-(b[1].ts||0));
-  if (!chores.length) { list.innerHTML = `<div style="text-align:center;color:var(--text2);padding:16px;font-size:13px;">今日尚無雜事</div>`; return; }
+  if (!chores.length) { list.innerHTML = `<div style="text-align:center;color:var(--text2);padding:16px;font-size:13px;">今日尚無主管交辦</div>`; return; }
   list.innerHTML = chores.map(([id,c])=>`
     <div style="display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--border);">
       <input type="checkbox" ${c.done?'checked':''} onchange="toggleChore('${id}',this.checked)" style="width:18px;height:18px;flex-shrink:0;">
@@ -1631,12 +1649,13 @@ function addChore() {
   const input = document.getElementById('choreInput');
   const text = input.value.trim();
   if (!text) { showToast('請先輸入內容'); return; }
+  const byIds = [...document.querySelectorAll('.choreChk:checked')].map(c=>c.value);
+  if (!byIds.length) { showToast('請至少勾選一位人員'); return; }
   const today = getBusinessDate();
   const id = uid();
-  const by = state.currentStaff.map(sid=>state.staff[sid]?.name).filter(Boolean).join('、') || (state.isAdmin?'管理員':'');
-  const byIds = [...state.currentStaff];
+  const by = byIds.map(sid=>state.staff[sid]?.name).filter(Boolean).join('、') || (state.isAdmin?'管理員':'');
   db.ref(`/chores/${today}/${id}`).set({ text, by, byIds, done:false, ts:Date.now() })
-    .then(()=>{ input.value=''; showToast('✅ 已登記'); })
+    .then(()=>{ input.value=''; renderChoreStaffPick(); showToast('✅ 已登記'); })
     .catch(e=>showToast('❌ 錯誤: '+e.message));
 }
 function toggleChore(id, done) {
@@ -1644,7 +1663,7 @@ function toggleChore(id, done) {
   db.ref(`/chores/${today}/${id}/done`).set(done);
 }
 function deleteChore(id) {
-  if (!confirm('確定刪除這筆雜事？')) return;
+  if (!confirm('確定刪除這筆主管交辦？')) return;
   const today = getBusinessDate();
   db.ref(`/chores/${today}/${id}`).remove().then(()=>showToast('🗑 已刪除'));
 }
@@ -2495,7 +2514,7 @@ function getStaffCredits(rec) {
 }
 
 // ─── Aggregate records → staff stats {clean, maintain, stair, garage, public, chore} ───
-// 公共清潔、雜事：誰做就誰 +1（整數，不分攤）；其他整房維持 1÷人數
+// 公共清潔、主管交辦：誰做就誰 +1（整數，不分攤）；其他整房維持 1÷人數
 function aggregateStats(records, chores) {
   const stats = {};
   const ensure = sid => { if(!stats[sid]) stats[sid] = { clean:0, maintain:0, stair:0, garage:0, public:0, chore:0 }; };
@@ -2551,7 +2570,7 @@ function renderReport(container) {
     return `<div class="report-row">
       <div style="flex:1;font-weight:600;">${staff.name}</div>
       <div style="font-size:12px;color:var(--text2);">
-        整房 <b>${s.clean}</b> ｜ 保養 <b>${s.maintain}</b> ｜ 樓梯 <b>${s.stair}</b> ｜ 車庫 <b>${s.garage}</b> ｜ 公共 <b>${s.public||0}</b> ｜ 雜事 <b>${s.chore||0}</b>
+        整房 <b>${s.clean}</b> ｜ 保養 <b>${s.maintain}</b> ｜ 樓梯 <b>${s.stair}</b> ｜ 車庫 <b>${s.garage}</b> ｜ 公共 <b>${s.public||0}</b> ｜ 主管交辦 <b>${s.chore||0}</b>
       </div>
     </div>`;
   }).join('');
@@ -2627,19 +2646,19 @@ function buildWorkbook(bDate, records, monthlyStats, dayChores) {
   ws1['!cols'] = [10,8,8,10,12,12,12,12,12,8].map(w=>({wch:w}));
   XLSX.utils.book_append_sheet(wb, ws1, '整房流水表');
 
-  // Sheet 1b: 雜事登記
+  // Sheet 1b: 主管交辦
   const choreRows = (dayChores||[]).map(c => [
     c.ts ? formatTime(c.ts) : '', c.by || '', c.text || '', c.done ? '已完成' : '未完成'
   ]);
   if (choreRows.length) {
-    const wsC = XLSX.utils.aoa_to_sheet([['時間','登記人','雜事內容','狀態'], ...choreRows]);
+    const wsC = XLSX.utils.aoa_to_sheet([['時間','登記人','主管交辦內容','狀態'], ...choreRows]);
     wsC['!cols'] = [8,12,30,8].map(w=>({wch:w}));
-    XLSX.utils.book_append_sheet(wb, wsC, '雜事登記');
+    XLSX.utils.book_append_sheet(wb, wsC, '主管交辦');
   }
 
   // Sheet 2: 員工每日統計
   const dayStats = aggregateStats(records.filter(r => r.endTime), dayChores||[]);
-  const dayHeaders = ['姓名','職位','整房間數(正常+趕房)','保養間數(大保養)','樓梯保養間數','車庫保養間數','公共清潔(次)','雜事(次)','整房合計'];
+  const dayHeaders = ['姓名','職位','整房間數(正常+趕房)','保養間數(大保養)','樓梯保養間數','車庫保養間數','公共清潔(次)','主管交辦(次)','整房合計'];
   const dayRows = Object.entries(dayStats).map(([sid, s]) => {
     const st = state.staff[sid];
     const total = Math.round((s.clean+s.maintain+s.stair+s.garage)*100)/100;
@@ -2651,7 +2670,7 @@ function buildWorkbook(bDate, records, monthlyStats, dayChores) {
 
   // Sheet 3: 月統計
   if (monthlyStats) {
-    const moHeaders = ['姓名','職位','整房間數','保養間數','樓梯保養間數','車庫保養間數','公共清潔(次)','雜事(次)','整房合計'];
+    const moHeaders = ['姓名','職位','整房間數','保養間數','樓梯保養間數','車庫保養間數','公共清潔(次)','主管交辦(次)','整房合計'];
     const moRows = Object.entries(monthlyStats).map(([sid, s]) => {
       const st = state.staff[sid];
       const total = Math.round((s.clean+s.maintain+s.stair+s.garage)*100)/100;
@@ -2733,7 +2752,7 @@ function showMonthlyStats() {
       return `<div class="report-row">
         <div style="flex:1;font-weight:600;">${staff.name}</div>
         <div style="font-size:12px;color:var(--text2);">
-          整房 <b>${s.clean}</b> ｜ 保養 <b>${s.maintain}</b> ｜ 樓梯 <b>${s.stair}</b> ｜ 車庫 <b>${s.garage}</b> ｜ 公共 <b>${s.public||0}</b> ｜ 雜事 <b>${s.chore||0}</b> ｜ 整房合計 <b>${total}</b>
+          整房 <b>${s.clean}</b> ｜ 保養 <b>${s.maintain}</b> ｜ 樓梯 <b>${s.stair}</b> ｜ 車庫 <b>${s.garage}</b> ｜ 公共 <b>${s.public||0}</b> ｜ 主管交辦 <b>${s.chore||0}</b> ｜ 整房合計 <b>${total}</b>
         </div>
       </div>`;
     }).join('');
@@ -2744,7 +2763,7 @@ function showMonthlyStats() {
         <div class="card" style="margin-bottom:12px;">
           <div style="font-weight:600;margin-bottom:8px;">📅 ${year}年${month}月 員工月結表</div>
           <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">
-            整房/保養/樓梯/車庫（1÷人數）｜ 公共/雜事（誰做誰+1）
+            整房/保養/樓梯/車庫（1÷人數）｜ 公共/主管交辦（誰做誰+1）
           </div>
           ${rows || '<div style="color:var(--text2);">本月尚無資料</div>'}
         </div>`;
