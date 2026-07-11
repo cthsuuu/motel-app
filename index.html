@@ -3842,8 +3842,8 @@ async function exportPeriodStaffCount() {
     // Same month – single query
     const snap = await db.ref('/cleaning').orderByKey().startAt(startStr).endAt(endStr + '').once('value');
     const data = snap.val() || {};
-    Object.values(data).forEach(dayRecs => {
-      Object.values(dayRecs).forEach(rec => allRecords.push(rec));
+    Object.entries(data).forEach(([_dk, dayRecs]) => {
+      Object.values(dayRecs).forEach(rec => allRecords.push(Object.assign({_dk}, rec)));
     });
   } else {
     // Span multiple months – query each month separately
@@ -3853,14 +3853,14 @@ async function exportPeriodStaffCount() {
       const moEnd   = mo < endPrefix ? mo + '-31' : endStr;
       const snap = await db.ref('/cleaning').orderByKey().startAt(moStart).endAt(moEnd + '').once('value');
       const data = snap.val() || {};
-      Object.values(data).forEach(dayRecs => {
-        Object.values(dayRecs).forEach(rec => allRecords.push(rec));
+      Object.entries(data).forEach(([_dk, dayRecs]) => {
+        Object.values(dayRecs).forEach(rec => allRecords.push(Object.assign({_dk}, rec)));
       });
     }
   }
 
   // Filter to exact date range (endTime required)
-  allRecords = allRecords.filter(r => r.endTime && r.date >= startStr && r.date <= endStr);
+  allRecords = allRecords.filter(r => r.endTime && r._dk >= startStr && r._dk <= endStr);
 
   // Aggregate by staff
   const stats = {};
