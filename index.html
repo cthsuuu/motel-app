@@ -2479,9 +2479,10 @@ function startInspection() {
     });
   });
 
-  // Last clean info
+  // Last clean info（只抓正常整/大保養/趕房，忽略車庫保養、樓梯保養等）
+  const CLEAN_MAIN_TYPES = ['normal','deep','rush'];
   const records = Object.values(state.cleaningRecords);
-  const lastRec = records.filter(r => r.room === roomId).sort((a,b)=>(b.startTime||0)-(a.startTime||0))[0];
+  const lastRec = records.filter(r => r.room === roomId && CLEAN_MAIN_TYPES.includes(r.type)).sort((a,b)=>(b.startTime||0)-(a.startTime||0))[0];
   document.getElementById('inspModalTitle').textContent = `🔍 查房 — ${roomId}`;
 
   const lastInfo = document.getElementById('lastCleanInfo');
